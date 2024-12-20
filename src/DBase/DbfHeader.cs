@@ -48,10 +48,22 @@ public readonly record struct DbfHeader
     [FieldOffset(30)]
     private readonly ushort _reserved2;
 
-    public DateTime LastUpdate
+    public DateOnly LastUpdate
     {
-        get => new(1900 + LastUpdateYear, LastUpdateMonth, LastUpdateDay);
-        init => (LastUpdateYear, LastUpdateMonth, LastUpdateDay) = ((byte)(value.Year - 1900), (byte)value.Month, (byte)value.Day);
+        get
+        {
+            var year = 1900 + LastUpdateYear;
+            var month = int.Clamp(LastUpdateMonth, 1, 12);
+            var day = int.Clamp(LastUpdateDay, 1, DateTime.DaysInMonth(year, month));
+            return new(year, month, day);
+        }
+
+        init
+        {
+            LastUpdateYear = (byte)(value.Year - 1900);
+            LastUpdateMonth = (byte)value.Month;
+            LastUpdateDay = (byte)value.Day;
+        }
     }
 
     [InlineArray(16)]

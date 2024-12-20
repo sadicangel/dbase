@@ -1,0 +1,7 @@
+﻿{
+  Version: DBase02,
+  RecordCount: 9,
+  HeaderLength: 521,
+  RecordLength: 127,
+  LastUpdate: Date_1
+}
