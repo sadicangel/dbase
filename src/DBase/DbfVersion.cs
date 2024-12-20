@@ -13,22 +13,22 @@ public enum DbfVersion : byte
     /// <summary>
     /// FoxBase version.
     /// </summary>
-    FoxBase = 0x02,
+    DBase02 = 0x02,
 
     /// <summary>
     /// FoxBase or dBASE III without memo fields.
     /// </summary>
-    FoxBaseDBase3NoMemo = 0x03,
+    DBase03 = 0x03,
 
     /// <summary>
     /// dBASE IV without memo fields.
     /// </summary>
-    DBase4NoMemo = 0x04,
+    DBase04 = 0x04,
 
     /// <summary>
     /// dBASE V without memo fields.
     /// </summary>
-    DBase5NoMemo = 0x05,
+    DBase05 = 0x05,
 
     /// <summary>
     /// Visual FoxPro.
@@ -43,27 +43,27 @@ public enum DbfVersion : byte
     /// <summary>
     /// dBASE IV SQL table without memo fields.
     /// </summary>
-    dBase4SQLTableNoMemo = 0x43,
+    DBase04SqlTable = 0x43,
 
     /// <summary>
     /// dBASE IV SQL system file without memo fields.
     /// </summary>
-    dBase4SQLSystemNoMemo = 0x63,
+    DBase04SqlSystem = 0x63,
 
     /// <summary>
     /// FoxBase or dBASE III with memo fields.
     /// </summary>
-    FoxBaseDBase3WithMemo = 0x83,
+    DBase03WithMemo = 0x83,
 
     /// <summary>
     /// dBASE IV with memo fields.
     /// </summary>
-    dBase4WithMemo = 0x8B,
+    DBase04WithMemo = 0x8B,
 
     /// <summary>
     /// dBASE IV SQL table with memo fields.
     /// </summary>
-    dBase4SQLTableWithMemo = 0xCB,
+    DBase04SqlTableWithMemo = 0xCB,
 
     /// <summary>
     /// FoxPro 2.x with memo fields.

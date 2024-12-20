@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Collections.Immutable;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -39,7 +40,7 @@ internal sealed class DbfWriter : IDisposable
         {
             HeaderLength = (ushort)(DbfHeader.Size + descriptors.Length * DbfFieldDescriptor.Size + 1),
             Language = DbfLanguage.ANSI,
-            LastUpdate = DateTime.Now,
+            LastUpdate = DateOnly.FromDateTime(DateTime.Now),
             RecordCount = 0,
             RecordLength = (ushort)descriptors.Sum(static d => d.Length),
             TableFlags = GetDbfTableFlags(descriptors),
@@ -112,11 +113,11 @@ internal sealed class DbfWriter : IDisposable
 
     internal static DbfVersion GetDbfVersion(ImmutableArray<DbfFieldDescriptor> descriptors)
     {
-        var version = DbfVersion.FoxBaseDBase3NoMemo;
+        var version = DbfVersion.DBase03;
         foreach (var descriptor in descriptors)
         {
             if (descriptor.Type == DbfFieldType.Memo)
-                version = DbfVersion.FoxBaseDBase3WithMemo;
+                version = DbfVersion.DBase03WithMemo;
         }
         return version;
     }
@@ -148,7 +149,7 @@ internal sealed class DbfWriter : IDisposable
         target.Fill((byte)' ');
         if (field.IsNull)
         {
-            if (descriptor.Type != DbfFieldType.Logical)
+            if (descriptor.Type is DbfFieldType.Logical)
                 target[0] = (byte)'?';
         }
         else
@@ -156,87 +157,95 @@ internal sealed class DbfWriter : IDisposable
             switch (descriptor.Type)
             {
                 case DbfFieldType.Character:
-                    var @string = ((string)field._value).AsSpan();
-                    // Align left.
-                    encoding.GetBytes(@string, target);
+                    {
+                        // Left align.
+                        encoding.GetBytes(field.GetValue<string>().AsSpan(), target);
+                    }
                     break;
 
                 case DbfFieldType.Numeric when descriptor.Decimal == 0:
-                    var integer = FormattableString.Invariant($"{field._value}").AsSpan();
-                    // Truncate if needed.
-                    integer = integer[..Math.Min(descriptor.Length, integer.Length)];
-                    // Align left.
-                    encoding.GetBytes(integer, target);
+                    {
+                        Span<byte> temp = stackalloc byte[descriptor.Length];
+                        if (!field.GetValue<long>().TryFormat(temp, out _, "D", CultureInfo.InvariantCulture))
+                            throw new InvalidOperationException($"Failed to format value '{field.Value}' as '{descriptor.Type}'");
+
+                        // Right align.
+                        var padding = descriptor.Length - temp.Length;
+                        temp.CopyTo(target[padding..]);
+                    }
                     break;
 
                 case DbfFieldType.Numeric:
                 case DbfFieldType.Float:
-                    var @double = FormattableString.Invariant($"{field._value}").AsSpan();
-                    var idx = @double.IndexOf(decimalSeparator);
-                    // No decimal separator.
-                    if (idx < 0)
                     {
-                        // Truncate if needed.
-                        @double = @double[..Math.Min(descriptor.Length, @double.Length)];
-                        // Align left.
-                        encoding.GetBytes(@double, target);
-                    }
-                    else
-                    {
-                        // Whole part.
-                        var whole = @double[..idx];
-                        // Truncate if needed.
-                        whole = whole[..Math.Min(descriptor.Length - descriptor.Decimal - 1, whole.Length)];
-                        // Decimal part.
-                        var fraction = @double[(idx + 1)..];
-                        // Truncate if needed.
-                        fraction = fraction[..Math.Min(descriptor.Decimal, fraction.Length)];
-                        // Align left.
-                        encoding.GetBytes(fraction, target);
-                        encoding.GetBytes(whole, target[fraction.Length..]);
-                        encoding.GetBytes(MemoryMarshal.CreateReadOnlySpan(ref decimalSeparator, 1), target.Slice(idx, 1));
+                        Span<char> format = ['F', '\0', '\0'];
+                        if (!descriptor.Decimal.TryFormat(format[1..], out var charsWritten))
+                            throw new InvalidOperationException($"Failed to create decimal format");
+                        format = format.Slice(1, charsWritten);
+
+                        Span<byte> temp = stackalloc byte[descriptor.Length];
+                        if (!field.GetValue<double>().TryFormat(temp, out _, format, CultureInfo.InvariantCulture))
+                            throw new InvalidOperationException($"Failed to format value '{field.Value}' as '{descriptor.Type}'");
+
+                        Span<byte> decimalSeparatorByte = [0];
+                        encoding.GetBytes([decimalSeparator], decimalSeparatorByte);
+                        temp.Replace((byte)'.', decimalSeparatorByte[0]);
+
+                        // Right align.
+                        var padding = descriptor.Length - temp.Length;
+                        temp.CopyTo(target[padding..]);
                     }
                     break;
 
                 case DbfFieldType.Int32:
                 case DbfFieldType.AutoIncrement:
-                    var i32 = (int)(long)field._value;
-                    MemoryMarshal.Write(target, in i32);
+                    {
+                        var i32 = (int)field.GetValue<long>();
+                        MemoryMarshal.Write(target, in i32);
+                    }
                     break;
 
                 case DbfFieldType.Double:
-                    var f64 = (double)field._value;
-                    MemoryMarshal.Write(target, in f64);
+                    {
+                        var f64 = field.GetValue<double>();
+                        MemoryMarshal.Write(target, in f64);
+                    }
                     break;
 
                 case DbfFieldType.Date:
-                    var date = (DateTime)field._value;
-                    for (int i = 0, y = date.Year; i < 4; ++i, y /= 10)
-                        target[i] = (byte)(y % 10 + '0');
-                    for (int i = 4, m = date.Month; i < 6; ++i, m /= 10)
-                        target[i] = (byte)((m & 10) + '0');
-                    for (int i = 6, d = date.Day; i < 8; ++i, d /= 10)
-                        target[i] = (byte)((d & 10) + '0');
+                    {
+                        var date = field.GetValue<DateTime>();
+                        for (int i = 0, y = date.Year; i < 4; ++i, y /= 10)
+                            target[i] = (byte)(y % 10 + '0');
+                        for (int i = 4, m = date.Month; i < 6; ++i, m /= 10)
+                            target[i] = (byte)((m & 10) + '0');
+                        for (int i = 6, d = date.Day; i < 8; ++i, d /= 10)
+                            target[i] = (byte)((d & 10) + '0');
+                    }
                     break;
 
                 case DbfFieldType.Timestamp:
-                    var timestamp = (DateTime)field._value;
-                    var julian = (int)(timestamp.Date.ToOADate() + 2415018.5);
-                    MemoryMarshal.Write(target[..4], in julian);
-                    var milliseconds = (int)timestamp.TimeOfDay.TotalMilliseconds;
-                    MemoryMarshal.Write(target[4..], in milliseconds);
+                    {
+                        var timestamp = field.GetValue<DateTime>();
+                        var julian = (int)(timestamp.Date.ToOADate() + 2415018.5);
+                        MemoryMarshal.Write(target[..4], in julian);
+                        var milliseconds = (int)timestamp.TimeOfDay.TotalMilliseconds;
+                        MemoryMarshal.Write(target[4..], in milliseconds);
+                    }
                     break;
 
                 case DbfFieldType.Logical:
-                    var boolean = (bool)field._value;
-                    target[0] = (byte)(boolean ? 'T' : 'F');
+                    {
+                        target[0] = (byte)(field.GetValue<bool>() ? 'T' : 'F');
+                    }
                     break;
 
                 case DbfFieldType.Memo:
                 case DbfFieldType.Binary:
                 case DbfFieldType.Ole:
-                    var binary = ((string)field._value).AsSpan();
-                    encoding.GetBytes(binary, target);
+                    {
+                        encoding.GetBytes(field.GetValue<string>(), target);
+                    }
                     break;
 
                 default:

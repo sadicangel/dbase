@@ -1,0 +1,10 @@
+﻿{
+  Version: DBase03,
+  LastUpdateYear: 18,
+  LastUpdateMonth: 9,
+  LastUpdateDay: 25,
+  RecordCount: 14,
+  HeaderLength: 1025,
+  RecordLength: 590,
+  LastUpdate: Date_1
+}
