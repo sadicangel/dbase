@@ -44,7 +44,7 @@ public abstract class DBaseTest
             foreach (var record in reader.Read())
             {
                 foreach (var field in record)
-                    writer.WriteField(field);
+                    writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo));
                 writer.NextRecord();
             }
         }
