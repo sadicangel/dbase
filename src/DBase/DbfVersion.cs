@@ -43,27 +43,27 @@ public enum DbfVersion : byte
     /// <summary>
     /// dBASE IV SQL table without memo fields.
     /// </summary>
-    DBase04SqlTable = 0x43,
+    DBase43 = 0x43,
 
     /// <summary>
     /// dBASE IV SQL system file without memo fields.
     /// </summary>
-    DBase04SqlSystem = 0x63,
+    DBase63 = 0x63,
 
     /// <summary>
     /// FoxBase or dBASE III with memo fields.
     /// </summary>
-    DBase03WithMemo = 0x83,
+    DBase83 = 0x83,
 
     /// <summary>
     /// dBASE IV with memo fields.
     /// </summary>
-    DBase04WithMemo = 0x8B,
+    DBase8B = 0x8B,
 
     /// <summary>
     /// dBASE IV SQL table with memo fields.
     /// </summary>
-    DBase04SqlTableWithMemo = 0xCB,
+    DBaseCB = 0xCB,
 
     /// <summary>
     /// FoxPro 2.x with memo fields.

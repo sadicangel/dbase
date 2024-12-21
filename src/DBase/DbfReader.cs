@@ -36,7 +36,7 @@ public sealed class DbfReader : IDisposable
         {
             DbfVersion.DBase02 =>
                 ReadHeaderDBase02(stream),
-            DbfVersion.DBase03 or DbfVersion.DBase04 or DbfVersion.DBase05 or DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.DBase04SqlTable or DbfVersion.DBase04SqlSystem or DbfVersion.DBase03WithMemo or DbfVersion.DBase04WithMemo or DbfVersion.DBase04SqlTableWithMemo or DbfVersion.FoxPro2WithMemo or DbfVersion.FoxBASE =>
+            DbfVersion.DBase03 or DbfVersion.DBase04 or DbfVersion.DBase05 or DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.DBase43 or DbfVersion.DBase63 or DbfVersion.DBase83 or DbfVersion.DBase8B or DbfVersion.DBaseCB or DbfVersion.FoxPro2WithMemo or DbfVersion.FoxBASE =>
                 ReadHeader(stream),
             _ =>
                 throw new InvalidDataException($"Invalid DBF version '0x{(byte)version:X2}'"),
@@ -201,6 +201,7 @@ public sealed class DbfReader : IDisposable
             case DbfFieldType.Ole:
             case DbfFieldType.Memo:
             case DbfFieldType.Binary:
+                // TODO: Actually read data from the memo file using this value as the memo index.
                 return encoding.GetString(source);
 
             default:

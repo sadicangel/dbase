@@ -7,23 +7,25 @@ internal readonly record struct DbfHeader02
 {
     internal const int Size = 8;
 
-    [FieldOffset(0)]
-    public readonly DbfVersion Version;
+    internal const int HeaderLength = 521;
 
-    [FieldOffset(1)]
-    public readonly ushort RecordCount;
+    [field: FieldOffset(0)]
+    public readonly DbfVersion Version { get; init; }
 
-    [FieldOffset(3)]
-    public readonly byte LastUpdateYear;
+    [field: FieldOffset(1)]
+    public readonly ushort RecordCount { get; init; }
 
-    [FieldOffset(4)]
-    public readonly byte LastUpdateMonth;
+    [field: FieldOffset(3)]
+    public readonly byte LastUpdateYear { get; init; }
 
-    [FieldOffset(5)]
-    public readonly byte LastUpdateDay;
+    [field: FieldOffset(4)]
+    public readonly byte LastUpdateMonth { get; init; }
 
-    [FieldOffset(6)]
-    public readonly ushort RecordLength;
+    [field: FieldOffset(5)]
+    public readonly byte LastUpdateDay { get; init; }
+
+    [field: FieldOffset(6)]
+    public readonly ushort RecordLength { get; init; }
 
     public static implicit operator DbfHeader(DbfHeader02 header) => new()
     {
@@ -33,6 +35,16 @@ internal readonly record struct DbfHeader02
         LastUpdateMonth = header.LastUpdateMonth,
         LastUpdateDay = header.LastUpdateDay,
         RecordLength = header.RecordLength,
-        HeaderLength = 521,
+        HeaderLength = HeaderLength,
+    };
+
+    public static implicit operator DbfHeader02(DbfHeader header) => new()
+    {
+        Version = header.Version,
+        RecordCount = (ushort)header.RecordCount,
+        LastUpdateYear = header.LastUpdateYear,
+        LastUpdateMonth = header.LastUpdateMonth,
+        LastUpdateDay = header.LastUpdateDay,
+        RecordLength = header.RecordLength,
     };
 }
