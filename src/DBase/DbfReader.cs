@@ -189,7 +189,7 @@ public sealed class DbfReader : IDisposable
         }
     }
 
-    public IEnumerable<DbfRecord> Read()
+    public IEnumerable<DbfRecord> ReadRecords()
     {
         while (Read(out var record))
         {

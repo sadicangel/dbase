@@ -97,9 +97,9 @@ internal sealed class DbfWriter : IDisposable
                     _stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref descriptor02, 1)));
                 }
                 _stream.WriteByte(0x0D);
-                if (_stream.Position is not DbfHeader02.HeaderLength)
+                if (_stream.Position is not DbfHeader02.HeaderLengthInDisk)
                 {
-                    _stream.Position = DbfHeader02.HeaderLength - 1;
+                    _stream.Position = DbfHeader02.HeaderLengthInDisk - 1;
                     _stream.WriteByte(0x00);
                 }
                 break;

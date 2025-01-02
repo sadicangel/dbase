@@ -7,7 +7,7 @@ internal readonly record struct DbfHeader02
 {
     internal const int Size = 8;
 
-    internal const int HeaderLength = 521;
+    internal const int HeaderLengthInDisk = 521;
 
     [field: FieldOffset(0)]
     public readonly DbfVersion Version { get; init; }
@@ -35,7 +35,7 @@ internal readonly record struct DbfHeader02
         LastUpdateMonth = header.LastUpdateMonth,
         LastUpdateDay = header.LastUpdateDay,
         RecordLength = header.RecordLength,
-        HeaderLength = HeaderLength,
+        HeaderLength = HeaderLengthInDisk,
     };
 
     public static implicit operator DbfHeader02(DbfHeader header) => new()
