@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using DBase.Internal;
 
 namespace DBase;
 
@@ -51,6 +52,28 @@ internal sealed class DbfWriter : IDisposable
         DecimalSeparator = _header.Language.GetDecimalSeparator();
 
         WriteHeader();
+
+        static DbfVersion GetDbfVersion(ImmutableArray<DbfFieldDescriptor> descriptors)
+        {
+            var version = DbfVersion.DBase03;
+            foreach (var descriptor in descriptors)
+            {
+                if (descriptor.Type == DbfFieldType.Memo)
+                    version = DbfVersion.DBase83;
+            }
+            return version;
+        }
+
+        static DbfTableFlags GetDbfTableFlags(ImmutableArray<DbfFieldDescriptor> descriptors)
+        {
+            var flags = DbfTableFlags.None;
+            foreach (var descriptor in descriptors)
+            {
+                if (descriptor.Type == DbfFieldType.Memo)
+                    flags |= DbfTableFlags.HasMemoField;
+            }
+            return flags;
+        }
     }
 
     public void Dispose()
@@ -62,9 +85,32 @@ internal sealed class DbfWriter : IDisposable
     private void WriteHeader()
     {
         _stream.Position = 0;
-        _stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref _header, 1)));
-        _stream.Write(MemoryMarshal.AsBytes(Descriptors.AsSpan()));
-        _stream.WriteByte(0x0D);
+
+        switch (_header.Version)
+        {
+            case DbfVersion.DBase02:
+                DbfHeader02 header02 = _header;
+                _stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header02, 1)));
+                foreach (var descriptor in Descriptors)
+                {
+                    DbfFieldDescriptor02 descriptor02 = descriptor;
+                    _stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref descriptor02, 1)));
+                }
+                _stream.WriteByte(0x0D);
+                if (_stream.Position is not DbfHeader02.HeaderLengthInDisk)
+                {
+                    _stream.Position = DbfHeader02.HeaderLengthInDisk - 1;
+                    _stream.WriteByte(0x00);
+                }
+                break;
+            case DbfVersion.DBase03 or DbfVersion.DBase04 or DbfVersion.DBase05 or DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.DBase43 or DbfVersion.DBase63 or DbfVersion.DBase83 or DbfVersion.DBase8B or DbfVersion.DBaseCB or DbfVersion.FoxPro2WithMemo or DbfVersion.FoxBASE:
+                _stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref _header, 1)));
+                _stream.Write(MemoryMarshal.AsBytes(Descriptors.AsSpan()));
+                _stream.WriteByte(0x0D);
+                break;
+            default:
+                throw new InvalidDataException($"Invalid DBF version '0x{(byte)_header.Version:X2}'");
+        };
     }
 
     private void UpdateLastUpdate()
@@ -108,29 +154,6 @@ internal sealed class DbfWriter : IDisposable
             if (pooledArray is not null)
                 ArrayPool<byte>.Shared.Return(pooledArray);
         }
-    }
-
-
-    internal static DbfVersion GetDbfVersion(ImmutableArray<DbfFieldDescriptor> descriptors)
-    {
-        var version = DbfVersion.DBase03;
-        foreach (var descriptor in descriptors)
-        {
-            if (descriptor.Type == DbfFieldType.Memo)
-                version = DbfVersion.DBase03WithMemo;
-        }
-        return version;
-    }
-
-    internal static DbfTableFlags GetDbfTableFlags(ImmutableArray<DbfFieldDescriptor> descriptors)
-    {
-        var flags = DbfTableFlags.None;
-        foreach (var descriptor in descriptors)
-        {
-            if (descriptor.Type == DbfFieldType.Memo)
-                flags |= DbfTableFlags.HasMemoField;
-        }
-        return flags;
     }
 
     internal static void WriteRecord(DbfRecord record, ImmutableArray<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Span<byte> target)

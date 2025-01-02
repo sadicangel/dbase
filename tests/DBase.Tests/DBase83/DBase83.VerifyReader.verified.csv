@@ -1,0 +1,68 @@
+﻿ID,CATCOUNT,AGRPCOUNT,PGRPCOUNT,ORDER,CODE,NAME,THUMBNAIL,IMAGE,PRICE,COST,DESC,WEIGHT,TAXABLE,ACTIVE
+87,2,0,0,87,1,Assorted Petits Fours,graphics/00000001/t_1.jpg,graphics/00000001/1.jpg,0,0,"         1",5.51,True,True
+26,3,0,0,26,CPKG,Christmas Package Collection,graphics/00000001/t_CPKG.jpg,graphics/00000001/CPKG.jpg,0,28.95,"         3",0,False,True
+27,3,0,0,27,CHOC,Chocolate Assorted Petits Fours,graphics/00000001/t_CHOC.jpg,graphics/00000001/CHOC.jpg,0,28.95,"         6",0,False,False
+28,3,0,0,28,PASTEL,Pastel Assorted Petits Fours,graphics/00000001/t_PASTEL.jpg,graphics/00000001/PASTEL.jpg,0,28.95,"         8",0,False,True
+29,2,0,0,29,CKR-1001,Checkerbites,graphics/00000001/t_CKR-1001.jpg,graphics/00000001/CKR-1001.jpg,15.75,15.75,"         9",0,False,True
+30,3,0,0,30,C,Christmas Petits Fours,graphics/00000001/t_C.jpg,graphics/00000001/C.jpg,0,31.95,"        10",0,False,True
+31,3,0,0,31,TBC01,Truffled Shortbread,graphics/00000001/t_TBC01.jpg,graphics/00000001/TBC01.jpg,19.25,19.25,"        11",0,False,False
+32,2,0,0,32,BD01,Biscotti di Divine,graphics/00000001/t_BD01.jpg,graphics/00000001/BD01.jpg,28.75,28.75,"        12",0,False,False
+33,1,0,0,33,DS02,Dresden Stollen,graphics/00000001/t_DS02.jpg,graphics/00000001/DS02.jpg,23.95,23.95,"        13",0,False,False
+34,1,0,0,34,AB01,Apricot Brandy Fruitcake,graphics/00000001/t_AB01.jpg,graphics/00000001/AB01.jpg,37.95,37.95,"        14",0,False,True
+35,2,0,0,35,1006,Trufflecots,graphics/00000001/t_1006.jpg,graphics/00000001/1006.jpg,29.95,29.95,"        16",0,False,True
+36,2,0,0,36,BC01,Butter Cookie Sampler,graphics/00000001/t_BC01.jpg,graphics/00000001/BC01.jpg,28.95,28.95,"        17",0,False,True
+37,3,0,0,37,CC01,Petite Cheesecake Sampler,graphics/00000001/t_CC01.jpg,graphics/00000001/CC01.jpg,27.65,27.65,"        18",0,False,True
+38,3,0,0,38,D-1005,Demitasse Truffles & Petits Fours,graphics/00000001/t_D-1005.jpg,graphics/00000001/D-1005.jpg,27.5,27.5,"        19",0,False,True
+39,2,0,0,39,CH-BC01,Christmas Shortbread,graphics/00000001/t_CH-BC01.jpg,graphics/00000001/CH-BC01.jpg,34.95,34.95,"        20",0,False,True
+40,3,0,0,40,M,Mice-A-Fours,graphics/00000001/t_M.jpg,graphics/00000001/M.jpg,0,19.75,"        22",0,False,False
+41,3,0,0,41,CR,Critters,graphics/00000001/t_CR.jpg,graphics/00000001/CR.jpg,0,28.95,"        23",0,False,False
+42,2,0,0,42,SLEIGH,Golden Sleigh Sampler,graphics/00000001/t_SLEIGH.jpg,graphics/00000001/SLEIGH.jpg,47.95,47.95,"        24",0,False,True
+43,2,0,0,43,PT01,Pumpkin Spice Teacake,graphics/00000001/t_PT01.jpg,graphics/00000001/PT01.jpg,25.75,25.75,"        26",0,False,True
+44,2,0,0,44,GINGER,Ginger Teacake,graphics/00000001/t_GINGER.jpg,graphics/00000001/GINGER.jpg,25.25,25.25,"        27",0,False,True
+45,3,0,0,45,LB01,Lemon Buttermilk Teacake,graphics/00000001/t_LB01.jpg,graphics/00000001/LB01.jpg,25.7,25.7,"        28",0,False,True
+46,2,0,0,46,CRAN,Cranberry Orange Teacake,graphics/00000001/t_CRAN.jpg,graphics/00000001/CRAN.jpg,25.95,25.95,"        29",0,False,True
+47,3,0,0,47,SAM02,Tea Cake Sampler,graphics/00000001/t_SAM02.jpg,graphics/00000001/SAM02.jpg,26.95,26.95,"        31",0,False,True
+48,1,0,0,48,CP01,Chocolate Pecan Tart,graphics/00000001/t_CP01.jpg,graphics/00000001/CP01.jpg,27.95,27.95,"        32",0,False,True
+49,2,0,0,49,NYEAR,New Year Petits Fours,graphics/00000001/t_NYEAR.jpg,graphics/00000001/NYEAR.jpg,0,29.95,"        33",0,False,False
+50,1,0,0,50,CH02,Rose Tea Cup,graphics/00000001/t_CH02.jpg,graphics/00000001/CH02.jpg,87,0,"        34",0,False,True
+51,1,0,0,51,CH03,Violet Tea Cup,graphics/00000001/t_CH03.jpg,graphics/00000001/CH03.jpg,87,0,"        35",0,False,True
+52,1,0,0,52,CH04,Pansy Tea Cup,graphics/00000001/t_CH04.jpg,graphics/00000001/CH04.jpg,87,0,"        36",0,False,True
+53,1,0,0,53,CH05,Forget-me-not Tea Cup,graphics/00000001/t_CH05.jpg,graphics/00000001/CH05.jpg,87,0,"        37",0,False,True
+54,1,0,0,54,CH06,Morning Glory Tea Cup,graphics/00000001/t_CH06.jpg,graphics/00000001/CH06.jpg,87,0,"        38",0,False,True
+55,1,0,0,55,MC-Heart,Golden Chocolate Heart,graphics/00000001/t_MC-HEART.jpg,graphics/00000001/MC-HEART.jpg,14.87,14.87,"        39",0,False,False
+56,3,0,0,56,VA01,Valentine Petits Fours,graphics/00000001/t_VA01.jpg,graphics/00000001/VA01.jpg,36.95,36.95,"        40",0,False,False
+57,3,0,0,57,VA01A,Valentine Petits Fours,graphics/00000001/t_VA01A.jpg,graphics/00000001/VA01A.jpg,28.95,29.95,"        41",0,False,False
+58,3,0,0,58,VABC,Valentine Shortbread,graphics/00000001/t_VABC.jpg,graphics/00000001/VABC.jpg,33.75,33.75,"        42",0,False,False
+59,2,0,0,59,BAS03,Basket of Romance,graphics/00000001/t_BAS03.jpg,graphics/00000001/BAS03.jpg,48.5,48.5,"        43",0,False,False
+60,2,0,0,60,1004A,Fudgies,graphics/00000001/t_1004A.jpg,graphics/00000001/1004A.jpg,16.95,16.95,"        44",0,False,True
+61,3,0,0,61,FUDGE,Tunnel of Fudge,graphics/00000001/t_FUDGE.jpg,graphics/00000001/FUDGE.jpg,26.75,26.75,"        45",0,False,False
+62,3,0,0,62,VA-1005,Valentine Demitasse Truffles & Petits Fours,graphics/00000001/t_VA-1005.jpg,graphics/00000001/VA-1005.jpg,27.5,27.5,"        46",0,False,False
+63,3,0,0,63,CS01,Butter Cinnamon Swirl,graphics/00000001/t_CS01.jpg,graphics/00000001/b_CS01.jpg,25.5,25.5,"        47",0,False,False
+64,2,0,0,64,D-BCO1,Daisy Shortbreads,graphics/00000001/t_D-BC01.jpg,graphics/00000001/D-BC01.jpg,32.25,32.25,"        48",0,False,False
+65,2,0,0,65,SPBC,Shamrock Shortbread Cookies,graphics/00000001/t_SPBC.jpg,graphics/00000001/SPBC.jpg,32.5,32.5,"        49",0,False,False
+66,3,0,0,66,SP-1001,St. Patrick's Day Petits Fours,graphics/00000001/t_SP-1001.jpg,graphics/00000001/SP-1001.jpg,27.5,27.5,"        51",0,False,False
+67,3,0,0,67,FB,Petit Four Favor Boxes,graphics/00000001/t_FB.jpg,graphics/00000001/FB.jpg,17.5,17.5,"        52",0,True,True
+69,3,0,0,69,WC,Wedding Cremes,graphics/00000001/t_WC.jpg,graphics/00000001/WC_vs2.jpg,0,28.95,"        54",0,False,False
+70,2,0,0,70,BABY-1002,Baby Shower Assortment,graphics/00000001/t_BABY-1002.jpg,graphics/00000001/BABY-1002.jpg,44.75,44.75,"        56",0,False,False
+71,2,0,0,71,PA03,Wedding Pastels,graphics/00000001/t_PA03.jpg,graphics/00000001/PA03_vs2.jpg,49.5,49.5,"        57",0,False,True
+72,3,0,0,72,EO,Easter Petits Fours,graphics/00000001/t_EO.jpg,graphics/00000001/EO.jpg,0,28.95,"        58",0,False,False
+73,2,0,0,73,E-BC01,Easter Shortbreads,graphics/00000001/t_E-BC01.jpg,graphics/00000001/E-BC01.jpg,35.25,35.25,"        59",0,False,False
+74,2,0,0,74,1101A,Baby Hop Basket,graphics/00000001/t_1101A.jpg,graphics/00000001/1101A.jpg,27.5,27.5,"        60",0,False,False
+75,2,0,0,75,1101,Great Grande Hop Basket,graphics/00000001/t_1101.jpg,graphics/00000001/1101.jpg,49.95,49.95,"        61",0,False,False
+76,2,0,0,76,E010,Truffle Egg Carton,graphics/00000001/t_E010.jpg,graphics/00000001/E010.jpg,28.95,28.95,"        62",0,False,False
+77,2,0,0,77,DK01,Milk Chocolate Ducks,graphics/00000001/t_DK01.jpg,graphics/00000001/DK01.jpg,6.95,6.95,"        63",0,False,False
+78,2,0,0,78,MC-EGG,Milk Chocolate Easter Egg,graphics/00000001/t_MC-EGG.jpg,graphics/00000001/MC-EGG.jpg,28.95,28.95,"        64",0,False,False
+79,2,0,0,79,BAS02,Tea Basket,graphics/00000001/t_BAS02.jpg,graphics/00000001/BAS02.jpg,39.75,39.75,"        65",0,False,False
+80,3,0,0,80,PKG,The Package Collection,graphics/00000001/t_PKG.jpg,graphics/00000001/PKG.jpg,0,28.95,"        66",0,False,False
+81,2,0,0,81,SHOE-BC01,Shortbread Shoe Collection,graphics/00000001/t_SHOE-BC01.jpg,graphics/00000001/SHOE-BC01.jpg,33.95,33.95,"        67",0,False,False
+82,2,0,0,82,TIE-BC01,Tin of Ties,graphics/00000001/t_TIE-BC01.jpg,graphics/00000001/TIE-BC01.jpg,33.5,33.5,"        68",0,False,False
+83,3,0,0,83,PET,Petals and Cremes,graphics/00000001/t_PET.jpg,graphics/00000001/PET.jpg,0,27.5,"        69",0,False,False
+84,3,0,0,84,STAR-1001,Hearts and Stripes,graphics/00000001/t_STAR-1001.jpg,graphics/00000001/STAR-1001.jpg,28.25,28.25,"        70",0,False,False
+85,2,0,0,85,STAR-BC01,4th of July Shortbread Cookies,graphics/00000001/t_STAR-BC01.jpg,graphics/00000001/STAR-BC01.jpg,33.75,33.75,"        71",0,False,False
+86,3,0,0,86,H,Hallowed Eve Petits Fours,graphics/00000001/t_H1.jpg,graphics/00000001/H1.jpg,0,29.95,"        72",0,False,False
+88,3,0,0,88,EYEBALLS,Eyeball Truffles,graphics/00000001/t_eyeballs.jpg,graphics/00000001/eyeballs.jpg,28.95,28.95,"        73",0,False,False
+89,2,0,0,89,H-BC01,Halloween Shortbread,graphics/00000001/t_H-BC01.jpg,graphics/00000001/H-BC01.jpg,35.95,35.95,"        74",0,False,False
+90,3,0,0,90,HRV,Harvest Petits Fours,graphics/00000001/t_HRV.jpg,graphics/00000001/HRV.jpg,0,0,"        75",0,False,True
+91,2,0,0,91,HRV-BC01,Harvest Shortbread Tin,graphics/00000001/t_HRV-BC01.jpg,graphics/00000001/HRV-BC01.jpg,34.25,0,"        76",0,False,False
+93,2,0,0,93,D-1001,Demitasse Christmas Petits Fours,graphics/00000001/t_D-1001.jpg,graphics/00000001/D-1001.jpg,28.95,0,"        77",0,False,True
+94,2,0,0,94,BD02,Trio of Biscotti,graphics/00000001/t_BD02.jpg,graphics/00000001/BD02.jpg,29.75,0,"        78",0,False,True

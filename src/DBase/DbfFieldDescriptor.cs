@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace DBase;
 
@@ -9,117 +8,50 @@ namespace DBase;
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-public readonly struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor>
+public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor>
 {
     internal const int Size = 32;
-
-    [FieldOffset(0)]
-    private readonly DbfFieldName _name;
-    [FieldOffset(10)]
-    private readonly byte _zero; // '\0'
-    [FieldOffset(11)]
-    private readonly DbfFieldType _type;
-    [FieldOffset(12)]
-    private readonly int _address; // in memory address.
-    [FieldOffset(16)]
-    private readonly byte _length;
-    [FieldOffset(17)]
-    private readonly byte _decimal;
-    [FieldOffset(20)]
-    private readonly ushort _workAreaId;
-    [FieldOffset(23)]
-    private readonly int _setFields;
-    [FieldOffset(31)]
-    private readonly byte _inMdxFile;
 
     /// <summary>
     /// Gets the field name in ASCII.
     /// </summary>
-    public readonly DbfFieldName Name { get => _name; init => _name = value; }
+    [field: FieldOffset(0)]
+    public readonly DbfFieldName Name { get; init; }
+
+    [FieldOffset(10)]
+    private readonly byte _zero; // '\0'
 
     /// <summary>
     /// Gets the type of the field.
     /// </summary>
-    public readonly DbfFieldType Type { get => _type; init => _type = value; }
+    [field: FieldOffset(11)]
+    public readonly DbfFieldType Type { get; init; }
+
+    [FieldOffset(12)]
+    private readonly int _address; // in memory address.
 
     /// <summary>
     /// Gets or sets the length of the field in binary (maximum 254).
     /// </summary>
-    public readonly byte Length { get => _length; init => _length = value; }
+    [field: FieldOffset(16)]
+    public readonly byte Length { get; init; }
 
     /// <summary>
     /// Gets the field decimal count in binary.
     /// </summary>
-    public readonly byte Decimal { get => _decimal; init => _decimal = value; }
+    [field: FieldOffset(17)]
+    public readonly byte Decimal { get; init; }
 
-    /// <summary>
-    /// Gets the field name in UTF16.
-    /// </summary>
-    public readonly string GetNameUtf16() => Encoding.ASCII.GetString(_name);
+    [FieldOffset(20)]
+    private readonly ushort _workAreaId;
 
-    internal readonly bool NameUtf16Equals(ReadOnlySpan<char> name)
-    {
-        if (name is { Length: 0 or > 10 })
-            return false;
+    [FieldOffset(23)]
+    private readonly int _setFields;
 
-        Span<byte> buffer = stackalloc byte[Encoding.ASCII.GetMaxByteCount(name.Length)];
-        var bytes = Encoding.ASCII.GetBytes(name, buffer);
+    [FieldOffset(31)]
+    private readonly byte _inMdxFile;
 
-        return ((ReadOnlySpan<byte>)_name).SequenceEqual(buffer[..bytes]);
-    }
-
-    /// <summary>
-    /// Indicates whether the current object is equal to another object of the same type.
-    /// </summary>
-    /// <param name="other">An object to compare with this object.</param>
-    /// <returns>
-    ///   <see langword="true" /> if the current object is equal to the <paramref name="other" /> parameter; otherwise, <see langword="false" />.
-    /// </returns>
-    public bool Equals(DbfFieldDescriptor other)
-    {
-        //return MemoryMarshal.AsBytes([this]).SequenceEqual(MemoryMarshal.AsBytes([other]));
-        return _name == other._name
-            && _zero == other._zero
-            && _type == other._type
-            && _address == other._address
-            && _length == other._length
-            && _decimal == other._decimal
-            && _workAreaId == other._workAreaId
-            && _setFields == other._setFields
-            && _inMdxFile == other._inMdxFile;
-    }
-
-    /// <summary>
-    /// Determines whether the specified <see cref="object" />, is equal to this instance.
-    /// </summary>
-    /// <param name="obj">The <see cref="object" /> to compare with this instance.</param>
-    /// <returns>
-    ///   <see langword="true" /> if the specified <see cref="object" /> is equal to this instance; otherwise, <see langword="false" />.
-    /// </returns>
-    public override bool Equals(object? obj) => obj is DbfFieldDescriptor descriptor && Equals(descriptor);
-
-    /// <summary>
-    /// Returns a hash code for this instance.
-    /// </summary>
-    /// <returns>
-    /// A hash code for this instance, suitable for use in hashing algorithms and data structures like a hash table. 
-    /// </returns>
-    public override int GetHashCode()
-    {
-        var hash = new HashCode();
-        hash.Add(_name);
-        hash.Add(_zero);
-        hash.Add(_type);
-        hash.Add(_address);
-        hash.Add(_length);
-        hash.Add(_decimal);
-        hash.Add(_workAreaId);
-        hash.Add(_setFields);
-        hash.Add(_inMdxFile);
-        return hash.ToHashCode();
-    }
-
-    private unsafe string GetDebuggerDisplay() => $"{_name},{(char)_type},{_length},{_decimal}";
+    private unsafe string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
 
     /// <summary>
     /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Character" />.
@@ -277,24 +209,4 @@ public readonly struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor>
             Decimal = 0
         };
     }
-
-    /// <summary>
-    /// Implements the operator op_Equality.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>
-    /// The result of the operator.
-    /// </returns>
-    public static bool operator ==(DbfFieldDescriptor left, DbfFieldDescriptor right) => left.Equals(right);
-
-    /// <summary>
-    /// Implements the operator op_Inequality.
-    /// </summary>
-    /// <param name="left">The left.</param>
-    /// <param name="right">The right.</param>
-    /// <returns>
-    /// The result of the operator.
-    /// </returns>
-    public static bool operator !=(DbfFieldDescriptor left, DbfFieldDescriptor right) => !(left == right);
 }

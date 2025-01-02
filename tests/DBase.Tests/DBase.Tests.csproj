@@ -8,16 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="DBase02\DBase02.dbf" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="DBase02\DBase02.dbf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="DBase03\DBase03.dbf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Content Include="**\*.dbf" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
+    <Content Include="**\*.dbt" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
