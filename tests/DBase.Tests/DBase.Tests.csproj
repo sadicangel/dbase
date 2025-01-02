@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Content Include="**\*.dbf" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
+    <Content Include="**\*.dbt" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

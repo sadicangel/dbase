@@ -29,7 +29,7 @@ public abstract class DBaseTest
     }
 
     [Fact]
-    public Task Verify()
+    public Task VerifyReader()
     {
         using var stream = File.OpenRead(DbfPath);
         using var reader = new DbfReader(stream);

@@ -12,7 +12,7 @@ namespace DBase;
 
 public sealed class DbfReader : IDisposable
 {
-    private readonly Stream _stream;
+    private readonly Stream _dbf;
     private readonly DbfHeader _header;
     private readonly ImmutableArray<DbfFieldDescriptor> _descriptors;
     private readonly long _eofPosition;
@@ -22,34 +22,99 @@ public sealed class DbfReader : IDisposable
     public Encoding Encoding { get; }
     public char DecimalSeparator { get; }
 
-    public DbfReader(Stream stream)
+    public DbfReader(Stream dbf)
     {
-        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(dbf);
 
-        _stream = stream;
-
-        _stream.Position = 0;
-        var version = (DbfVersion)_stream.ReadByte();
-        _stream.Position = 0;
-
-        (_header, _descriptors) = version switch
-        {
-            DbfVersion.DBase02 =>
-                ReadHeaderDBase02(stream),
-            DbfVersion.DBase03 or DbfVersion.DBase04 or DbfVersion.DBase05 or DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.DBase43 or DbfVersion.DBase63 or DbfVersion.DBase83 or DbfVersion.DBase8B or DbfVersion.DBaseCB or DbfVersion.FoxPro2WithMemo or DbfVersion.FoxBASE =>
-                ReadHeader(stream),
-            _ =>
-                throw new InvalidDataException($"Invalid DBF version '0x{(byte)version:X2}'"),
-        };
-
+        _dbf = dbf;
+        _header = ReadHeader(dbf);
+        _descriptors = ReadDescriptors(dbf, in _header);
         _eofPosition = _header.HeaderLength + _header.RecordCount * _header.RecordLength;
+
         Encoding = _header.Language.GetEncoding();
         DecimalSeparator = _header.Language.GetDecimalSeparator();
     }
 
-    public void Dispose() => _stream.Dispose();
+    public void Dispose() => _dbf.Dispose();
 
-    private static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors) ReadHeader(Stream stream)
+    private static DbfHeader ReadHeader(Stream dbf)
+    {
+        dbf.Position = 0;
+        var version = (DbfVersion)dbf.ReadByte();
+        dbf.Position = 0;
+
+        return version.GetVersionNumber() switch
+        {
+            < 3 => ReadHeader02(dbf),
+            < 7 => ReadHeader03(dbf),
+            _ =>
+                throw new NotSupportedException($"Unsupported DBF version '0x{(byte)version:X2}'"),
+        };
+
+        static DbfHeader ReadHeader02(Stream stream)
+        {
+            Unsafe.SkipInit(out DbfHeader02 header);
+            stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
+            return header;
+        }
+
+        static DbfHeader ReadHeader03(Stream stream)
+        {
+            Unsafe.SkipInit(out DbfHeader header);
+            stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
+            return header;
+        }
+    }
+
+    private static ImmutableArray<DbfFieldDescriptor> ReadDescriptors(Stream stream, in DbfHeader header)
+    {
+        return header.Version.GetVersionNumber() switch
+        {
+            < 3 => ReadDescriptors02(stream, in header),
+            < 7 => ReadDescriptors03(stream, in header),
+            _ => throw new NotSupportedException($"Unsupported DBF version '0x{(byte)header.Version:X2}'"),
+        };
+
+        static ImmutableArray<DbfFieldDescriptor> ReadDescriptors02(Stream stream, in DbfHeader header)
+        {
+            stream.Position = DbfHeader02.Size;
+
+            var descriptors02 = ArrayPool<DbfFieldDescriptor02>.Shared.Rent(32);
+            stream.ReadExactly(MemoryMarshal.AsBytes(descriptors02.AsSpan(0, 32)));
+
+            var count = 32;
+            if (stream.ReadByte() is not 0x0D)
+            {
+                count = Array.FindIndex(descriptors02, static descriptor => descriptor.Name[0] is 0x0D);
+                if (count < 0) count = 32; // Invalid terminator, assume all 32 fields.
+            }
+
+            var descriptors03 = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(count);
+            for (var i = 0; i < count; ++i)
+                descriptors03.Add(descriptors02[i]);
+
+            ArrayPool<DbfFieldDescriptor02>.Shared.Return(descriptors02);
+
+            return descriptors03.MoveToImmutable();
+        }
+
+        static ImmutableArray<DbfFieldDescriptor> ReadDescriptors03(Stream stream, in DbfHeader header)
+        {
+            stream.Position = DbfHeader.Size;
+
+            var descriptors03 = new DbfFieldDescriptor[(header.HeaderLength - DbfHeader.Size) / DbfFieldDescriptor.Size];
+            stream.ReadExactly(MemoryMarshal.AsBytes(descriptors03.AsSpan()));
+
+            if (stream.ReadByte() != 0x0D)
+            {
+                throw new InvalidDataException("Invalid DBF header terminator");
+            }
+
+            return ImmutableCollectionsMarshal.AsImmutableArray(descriptors03);
+        }
+    }
+
+    private static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors) ReadHeader03(Stream stream)
     {
         Unsafe.SkipInit(out DbfHeader header);
         stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
@@ -66,10 +131,10 @@ public sealed class DbfReader : IDisposable
         return (header, descriptors);
     }
 
-    private static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors) ReadHeaderDBase02(Stream stream)
+    private static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors) ReadHeader02(Stream stream)
     {
-        Unsafe.SkipInit(out DbfHeader02 header02);
-        stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header02, 1)));
+        Unsafe.SkipInit(out DbfHeader02 header);
+        stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
         var descriptors02 = ArrayPool<DbfFieldDescriptor02>.Shared.Rent(32);
         stream.ReadExactly(MemoryMarshal.AsBytes(descriptors02.AsSpan(0, 32)));
 
@@ -77,23 +142,25 @@ public sealed class DbfReader : IDisposable
         if (stream.ReadByte() is not 0x0D)
         {
             count = Array.FindIndex(descriptors02, static descriptor => descriptor.Name[0] is 0x0D);
-            if (count < 0) count = 32;
+            if (count < 0) count = 32; // Invalid terminator, assume all 32 fields.
         }
 
-        var descriptors = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(count);
+        var descriptors03 = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(count);
         for (var i = 0; i < count; ++i)
-            descriptors.Add(descriptors02[i]);
+            descriptors03.Add(descriptors02[i]);
 
         ArrayPool<DbfFieldDescriptor02>.Shared.Return(descriptors02);
 
-        return (header02, descriptors.MoveToImmutable());
+        var descriptors = descriptors03.MoveToImmutable();
+
+        return (header, descriptors);
     }
 
     public bool Read([MaybeNullWhen(false)] out DbfRecord record)
     {
         record = null;
 
-        if (_stream.Position >= _eofPosition)
+        if (_dbf.Position >= _eofPosition)
         {
             return false;
         }
@@ -106,7 +173,7 @@ public sealed class DbfReader : IDisposable
                 ? stackalloc byte[recordLength]
                 : (pooledArray = ArrayPool<byte>.Shared.Rent(recordLength)).AsSpan(0, recordLength);
 
-            var bytesRead = _stream.ReadAtLeast(buffer, recordLength, throwOnEndOfStream: false);
+            var bytesRead = _dbf.ReadAtLeast(buffer, recordLength, throwOnEndOfStream: false);
             if (bytesRead != recordLength)
             {
                 return false;
