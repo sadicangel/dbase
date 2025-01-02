@@ -6,6 +6,7 @@
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
     <PackageVersion Include="CsvHelper" Version="33.0.1" />
     <PackageVersion Include="DiffEngine" Version="15.6.0" />
+    <PackageVersion Include="DotNext.IO" Version="5.17.1" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="8.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
