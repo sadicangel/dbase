@@ -10,7 +10,7 @@ public readonly record struct DbtHeader
     internal const ushort HeaderLengthInDisk = 512;
 
     [field: FieldOffset(0)]
-    public int NextBlock { get; init; }
+    public int NextIndex { get; init; }
 
     [FieldOffset(4)]
     private readonly ushort _blockLength03;
@@ -24,8 +24,8 @@ public readonly record struct DbtHeader
     [FieldOffset(16)]
     private readonly int _reserved4;
 
-    [FieldOffset(16)]
-    private readonly byte _version;
+    [field: FieldOffset(16)]
+    public byte Version { get; init; }
 
     [FieldOffset(20)]
     private readonly ushort _blockLength04;
@@ -37,7 +37,7 @@ public readonly record struct DbtHeader
     {
         get
         {
-            var blockLength = _version is 0 ? _blockLength04 : _blockLength03;
+            var blockLength = Version is 0 ? _blockLength04 : _blockLength03;
             return blockLength > 0 ? blockLength : HeaderLengthInDisk; // Default to 512, same as header size in disk.
         }
         init

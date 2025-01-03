@@ -20,30 +20,26 @@ public abstract class DBaseTest
 
     private string DbfPath => Path.Combine(GetType().Name, $"{GetType().Name}.dbf");
 
-    private string DbtPath => Path.ChangeExtension(DbfPath, "dbt");
-
     [Fact]
     public Task VerifyHeader()
     {
-        using var stream = File.OpenRead(DbfPath);
-        using var reader = new DbfReader(stream);
-        return Verifier.Verify(target: reader.Header);
+        using var dbf = Dbf.Open(DbfPath);
+        return Verifier.Verify(target: dbf.Header);
     }
 
     [Fact]
     public Task VerifyReader()
     {
-        using var stream = File.OpenRead(DbfPath);
-        using var reader = new DbfReader(stream);
+        using var dbf = Dbf.Open(DbfPath);
         using var output = new MemoryStream();
         using (var writer = new CsvWriter(new StreamWriter(output), s_csvConfiguration.Value))
         {
 
-            foreach (var descriptor in reader.Descriptors)
+            foreach (var descriptor in dbf.Descriptors)
                 writer.WriteField(descriptor.Name.ToString());
             writer.NextRecord();
 
-            foreach (var record in reader.ReadRecords())
+            foreach (var record in dbf)
             {
                 foreach (var field in record)
                     writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo));
@@ -60,21 +56,21 @@ public abstract class DBaseTest
     [Fact]
     public Task VerifyMemo()
     {
-        if (!File.Exists(DbtPath))
-            return Task.CompletedTask;
+        using var dbf = Dbf.Open(DbfPath);
 
-        using var stream = File.OpenRead(DbtPath);
-        using var reader = new DbtReader(stream);
+        var dbt = dbf.Dbt;
+
+        if (dbt is null) return Task.CompletedTask;
+
         using var writer = new StringWriter();
 
-        var index = reader.Index;
-        foreach (var record in reader.ReadRecords())
+        var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / dbt.Header.BlockLength);
+        foreach (var record in dbt)
         {
-            writer.Write(index);
-            writer.WriteLine(": ");
+            writer.WriteLine($"{index} ({record.Data.Length}b): ");
             writer.WriteLine(record.ToString());
-            index = reader.Index;
             writer.WriteLine();
+            index += 1 + record.Data.Length / dbt.Header.BlockLength;
         }
 
         var target = writer.ToString();
