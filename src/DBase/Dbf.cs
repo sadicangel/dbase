@@ -133,6 +133,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     {
         Flush();
         Dbt?.Dispose();
+        Fpt?.Dispose();
         _dbf.Dispose();
     }
 
@@ -143,6 +144,8 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             _dirty = false;
             DbfHelper.WriteHeader(_dbf, in _header, Descriptors);
         }
+        Dbt?.Flush();
+        Fpt?.Flush();
         _dbf.Flush();
     }
 

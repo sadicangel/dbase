@@ -1,1 +1,12 @@
-﻿
+﻿{
+  Version: VisualFoxPro,
+  LastUpdateYear: 6,
+  LastUpdateMonth: 9,
+  LastUpdateDay: 9,
+  RecordCount: 34,
+  HeaderLength: 4936,
+  RecordLength: 3907,
+  TableFlags: HasStructuralCdx, HasMemoField,
+  Language: Windows_ANSI_1252,
+  LastUpdate: Date_1
+}
