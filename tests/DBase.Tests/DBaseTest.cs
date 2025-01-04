@@ -94,6 +94,7 @@ public abstract class DBaseTest
             return Verifier.Verify(target: target);
         }
 
+        Assert.Skip($"'{Path.GetFileName(DbfPath)}' does not have a corresponding memo file.");
         return Task.CompletedTask;
     }
 }
