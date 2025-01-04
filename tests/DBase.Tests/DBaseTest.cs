@@ -51,30 +51,49 @@ public abstract class DBaseTest
         return Verifier.Verify(target: target, extension: "csv");
     }
 
-    private readonly record struct MemoRecord(int Index, string Value);
-
     [Fact]
     public Task VerifyMemo()
     {
         using var dbf = Dbf.Open(DbfPath);
 
         var dbt = dbf.Dbt;
+        var fpt = dbf.Fpt;
 
-        if (dbt is null) return Task.CompletedTask;
-
-        using var writer = new StringWriter();
-
-        var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / dbt.Header.BlockLength);
-        foreach (var record in dbt)
+        if (dbt is not null)
         {
-            writer.WriteLine($"{index} ({record.Data.Length}b): ");
-            writer.WriteLine(record.ToString());
-            writer.WriteLine();
-            index += 1 + record.Data.Length / dbt.Header.BlockLength;
+            using var writer = new StringWriter();
+
+            var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / dbt.Header.BlockLength);
+            foreach (var record in dbt)
+            {
+                writer.WriteLine($"{index} ({record.Data.Length}b): ");
+                writer.WriteLine(record.ToString());
+                writer.WriteLine();
+                index += 1 + record.Data.Length / dbt.Header.BlockLength;
+            }
+
+            var target = writer.ToString();
+
+            return Verifier.Verify(target: target);
+        }
+        else if (fpt is not null)
+        {
+            using var writer = new StringWriter();
+
+            var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / fpt.Header.BlockLength);
+            foreach (var record in fpt)
+            {
+                writer.WriteLine($"{index} ({record.Type}) ({record.Data.Length}b): ");
+                writer.WriteLine(record.ToString());
+                writer.WriteLine();
+                index += 1 + record.Data.Length / fpt.Header.BlockLength;
+            }
+
+            var target = writer.ToString();
+
+            return Verifier.Verify(target: target);
         }
 
-        var target = writer.ToString();
-
-        return Verifier.Verify(target: target);
+        return Task.CompletedTask;
     }
 }

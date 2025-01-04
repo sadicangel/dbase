@@ -41,6 +41,12 @@ public enum DbfFieldType : byte
     /// </summary>
     Timestamp = (byte)'@',
     /// <summary>
+    /// Date/Time value (stored internally as 8 bytes). The first 4 bytes are a 32-bit little-endian
+    /// integer representation of the Julian date, where Oct. 15, 1582 = 2299161 per www.nr.com/julian.html
+    /// The last 4 bytes are a 32-bit little-endian integer time of day represented as milliseconds since midnight.
+    /// </summary>
+    DateTime = (byte)'T',
+    /// <summary>
     /// <c>Y</c>, <c>y</c>, <c>N</c>, <c>n</c>, <c>T</c>, <c>t</c>, <c>F</c>, <c>f</c>, <c>1</c>, <c>0</c> or <c>?</c> (when uninitialized).
     /// </summary>
     /// <remarks>
@@ -55,6 +61,10 @@ public enum DbfFieldType : byte
     /// Like <see cref="Memo" /> fields, but not for text processing.
     /// </summary>
     Binary = (byte)'B',
+    /// <summary>
+    /// Like <see cref="Memo" /> fields, but optimized for binary data.
+    /// </summary>
+    Blob = (byte)'W',
     /// <summary>
     /// OLE Objects in MS Windows versions.
     /// </summary>
