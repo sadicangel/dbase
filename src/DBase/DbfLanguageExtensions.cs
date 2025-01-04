@@ -8,6 +8,11 @@ namespace DBase;
 /// </summary>
 public static class DbfLanguageExtensions
 {
+    static DbfLanguageExtensions()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     /// <summary>
     /// Gets the decimal separator <see cref="char" /> for the <see cref="DbfLanguage" />.
     /// </summary>
@@ -50,24 +55,24 @@ public static class DbfLanguageExtensions
     /// <returns></returns>
     public static Encoding GetEncoding(this DbfLanguage language) => language switch
     {
-        DbfLanguage.US_MSDOS_437 => Encoding.GetEncoding("IBM437"),
-        DbfLanguage.Greek_MSDOS_737 => Encoding.GetEncoding("ibm737"),
-        DbfLanguage.International_MSDOS_850 => Encoding.GetEncoding("ibm850"),
-        DbfLanguage.Eastern_European_MSDOS_852 => Encoding.GetEncoding("ibm852"),
-        DbfLanguage.Turkish_MSDOS_857 => Encoding.GetEncoding("ibm857"),
-        DbfLanguage.Icelandic_MSDOS_861 => Encoding.GetEncoding("ibm861"),
-        DbfLanguage.Nordic_MSDOS_865 => Encoding.GetEncoding("IBM865"),
-        DbfLanguage.Russian_MSDOS_866 => Encoding.GetEncoding("cp866"),
-        DbfLanguage.Japanese_Windows_932 => Encoding.GetEncoding("shift_jis"),
-        DbfLanguage.Chinese_Windows_936 => Encoding.GetEncoding("gb2312"),
-        DbfLanguage.Chinese_Windows_950 => Encoding.GetEncoding("big5"),
-        DbfLanguage.Eastern_European_Windows_1250 => Encoding.GetEncoding("windows-1250"),
-        DbfLanguage.Russian_Windows_1251 => Encoding.GetEncoding("windows-1251"),
-        DbfLanguage.Windows_ANSI_1252 => Encoding.GetEncoding("windows-1252"),
-        DbfLanguage.Greek_Windows_1253 => Encoding.GetEncoding("windows-1253"),
-        DbfLanguage.Turkish_Windows_1254 => Encoding.GetEncoding("windows-1254"),
-        DbfLanguage.Hebrew_Windows_1255 => Encoding.GetEncoding("windows-1255"),
-        DbfLanguage.Arabic_Windows_1256 => Encoding.GetEncoding("windows-1256"),
+        DbfLanguage.US_MSDOS_437 => Encoding.GetEncoding(437),
+        DbfLanguage.Greek_MSDOS_737 => Encoding.GetEncoding(737),
+        DbfLanguage.International_MSDOS_850 => Encoding.GetEncoding(850),
+        DbfLanguage.Eastern_European_MSDOS_852 => Encoding.GetEncoding(852),
+        DbfLanguage.Turkish_MSDOS_857 => Encoding.GetEncoding(857),
+        DbfLanguage.Icelandic_MSDOS_861 => Encoding.GetEncoding(861),
+        DbfLanguage.Nordic_MSDOS_865 => Encoding.GetEncoding(865),
+        DbfLanguage.Russian_MSDOS_866 => Encoding.GetEncoding(866),
+        DbfLanguage.Japanese_Windows_932 => Encoding.GetEncoding(932),
+        DbfLanguage.Chinese_Windows_936 => Encoding.GetEncoding(936),
+        DbfLanguage.Chinese_Windows_950 => Encoding.GetEncoding(950),
+        DbfLanguage.Eastern_European_Windows_1250 => Encoding.GetEncoding(1250),
+        DbfLanguage.Russian_Windows_1251 => Encoding.GetEncoding(1251),
+        DbfLanguage.Windows_ANSI_1252 => Encoding.GetEncoding(1252),
+        DbfLanguage.Greek_Windows_1253 => Encoding.GetEncoding(1253),
+        DbfLanguage.Turkish_Windows_1254 => Encoding.GetEncoding(1254),
+        DbfLanguage.Hebrew_Windows_1255 => Encoding.GetEncoding(1255),
+        DbfLanguage.Arabic_Windows_1256 => Encoding.GetEncoding(1256),
         DbfLanguage.OEM or DbfLanguage.ANSI => Encoding.ASCII,
         _ => throw new InvalidEnumArgumentException(nameof(language), (int)language, typeof(DbfLanguage)),
     };

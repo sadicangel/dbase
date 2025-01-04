@@ -42,6 +42,9 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     [field: FieldOffset(17)]
     public readonly byte Decimal { get; init; }
 
+    [field: FieldOffset(18)]
+    public readonly DbfFieldFlags Flags { get; init; }
+
     [FieldOffset(20)]
     private readonly ushort _workAreaId;
 

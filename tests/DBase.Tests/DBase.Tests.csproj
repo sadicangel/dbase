@@ -10,6 +10,7 @@
   <ItemGroup>
     <Content Include="**\*.dbf" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
     <Content Include="**\*.dbt" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
+    <Content Include="**\*.fpt" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +29,10 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="DBase30\DBase30.dbf" Link="DBase30\DBase30.dbf" />
   </ItemGroup>
 
 </Project>

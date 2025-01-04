@@ -2,7 +2,7 @@
 
 namespace DBase;
 
-public readonly struct DbtRecord : IEquatable<DbtRecord>
+public readonly record struct DbtRecord : IEquatable<DbtRecord>
 {
     private readonly byte[] _bytes;
 
@@ -20,8 +20,6 @@ public readonly struct DbtRecord : IEquatable<DbtRecord>
 
     public bool Equals(DbtRecord other) => _bytes.AsSpan().SequenceEqual(other._bytes.AsSpan());
 
-    public override bool Equals(object? obj) => obj is DbtRecord record && Equals(record);
-
     public override int GetHashCode()
     {
         var hash = new HashCode();
@@ -29,8 +27,4 @@ public readonly struct DbtRecord : IEquatable<DbtRecord>
             hash.Add(item);
         return hash.ToHashCode();
     }
-
-    public static bool operator ==(DbtRecord left, DbtRecord right) => left.Equals(right);
-
-    public static bool operator !=(DbtRecord left, DbtRecord right) => !(left == right);
 }

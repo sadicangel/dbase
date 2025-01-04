@@ -13,4 +13,7 @@ public static class DbfVersionExtensions
 
     public static bool HasDbtMemo(this DbfVersion version) =>
         ((byte)version & 0b1000_0000) != 0;
+
+    public static bool IsFoxPro(this DbfVersion version) =>
+        version is DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement;
 }
