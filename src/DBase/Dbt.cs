@@ -51,7 +51,7 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
         {
             BlockLength = blockLength,
             NextIndex = Math.Max(1, DbtHeader.HeaderLengthInDisk / blockLength),
-            Version = version.GetVersionNumber() is > 3 ? (byte)0 : (byte)version
+            Version = version is DbfVersion.DBase03 or DbfVersion.DBase83 ? (byte)version : (byte)0
         };
 
         var dbt = new Dbt(stream, header);
@@ -146,11 +146,11 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
 
         foreach (var record in records)
         {
-            foreach (var chunk in record.Data.Chunk(_header.BlockLength))
-            {
-                _dbt.Write(chunk);
-                ++index;
-            }
+            _dbt.Write(record.Data);
+            _dbt.Write(s_recordTerminator);
+
+            var length = record.Data.Length + 2;
+            index += 1 + length / _header.BlockLength;
         }
 
         if (index > _header.NextIndex)

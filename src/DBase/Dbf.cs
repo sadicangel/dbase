@@ -20,6 +20,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     public char DecimalSeparator { get; }
 
     public Dbt? Dbt { get; }
+    public Fpt? Fpt { get; }
 
     public int Count
     {
@@ -37,7 +38,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
     public DbfRecord this[int index] { get => Get(index); }
 
-    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Dbt? dbt)
+    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Dbt? dbt, Fpt? fpt)
     {
         _dbf = dbf;
         _header = header;
@@ -47,6 +48,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         DecimalSeparator = _header.Language.GetDecimalSeparator();
 
         Dbt = dbt;
+        Fpt = fpt;
     }
 
     public static Dbf Open(string fileName)
@@ -54,28 +56,55 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         var dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
         var dbtName = Path.ChangeExtension(fileName, "dbt");
         var dbt = File.Exists(dbtName) ? new FileStream(dbtName, FileMode.Open, FileAccess.ReadWrite) : null;
-        return Open(dbf, dbt);
+        var fptName = Path.ChangeExtension(fileName, "fpt");
+        var fpt = dbt is null && File.Exists(fptName) ? new FileStream(fptName, FileMode.Open, FileAccess.ReadWrite) : null;
+        return Open(dbf, dbt, fpt);
     }
 
-    public static Dbf Open(Stream dbf, Stream? dbt = null)
+    public static Dbf Open(Stream dbf, Stream? dbt = null, Stream? fpt = null)
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
         var header = DbfHelper.ReadHeader(dbf);
         var descriptors = DbfHelper.ReadDescriptors(dbf, in header);
-        return new Dbf(dbf, in header, descriptors, dbt is not null ? Dbt.Open(dbt) : null);
+        return new Dbf(
+            dbf,
+            in header,
+            descriptors,
+            dbt is not null ? Dbt.Open(dbt) : null,
+            fpt is not null ? Fpt.Open(fpt) : null);
     }
 
-    public static Dbf Create(string fileName, ImmutableArray<DbfFieldDescriptor> descriptors)
+    public static Dbf Create(
+        string fileName,
+        ImmutableArray<DbfFieldDescriptor> descriptors,
+        DbfVersion version = DbfVersion.DBase03,
+        DbfLanguage language = DbfLanguage.ANSI)
     {
         var dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
         var dbt = default(FileStream);
+        var fpt = default(FileStream);
         if (DbfHelper.GetTableFlagsFromDescriptors(descriptors).HasFlag(DbfTableFlags.HasMemoField))
-            dbt = new FileStream(Path.ChangeExtension(fileName, "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
-        return Create(dbf, descriptors, dbt);
+        {
+            if (version.IsFoxPro())
+            {
+                fpt = new FileStream(Path.ChangeExtension(fileName, "fpt"), FileMode.CreateNew, FileAccess.ReadWrite);
+            }
+            else
+            {
+                dbt = new FileStream(Path.ChangeExtension(fileName, "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
+            }
+        }
+        return Create(dbf, descriptors, dbt, fpt, version, language);
     }
 
-    public static Dbf Create(Stream dbf, ImmutableArray<DbfFieldDescriptor> descriptors, Stream? dbt = null, DbfLanguage language = DbfLanguage.ANSI)
+    public static Dbf Create(
+        Stream dbf,
+        ImmutableArray<DbfFieldDescriptor> descriptors,
+        Stream? dbt = null,
+        Stream? fpt = null,
+        DbfVersion version = DbfVersion.DBase03,
+        DbfLanguage language = DbfLanguage.ANSI)
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
@@ -87,18 +116,24 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             RecordCount = 0,
             RecordLength = (ushort)descriptors.Sum(static d => d.Length),
             TableFlags = DbfHelper.GetTableFlagsFromDescriptors(descriptors),
-            Version = DbfHelper.GetVersionFromDescriptors(descriptors),
+            Version = version,
         };
 
         DbfHelper.WriteHeader(dbf, in header, descriptors);
 
-        return new Dbf(dbf, in header, descriptors, dbt is not null ? Dbt.Create(dbt) : null);
+        return new Dbf(
+            dbf,
+            in header,
+            descriptors,
+            dbt is not null ? Dbt.Create(dbt) : null,
+            fpt is not null ? Fpt.Create(fpt) : null);
     }
 
     public void Dispose()
     {
         Flush();
         Dbt?.Dispose();
+        Fpt?.Dispose();
         _dbf.Dispose();
     }
 
@@ -109,6 +144,8 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             _dirty = false;
             DbfHelper.WriteHeader(_dbf, in _header, Descriptors);
         }
+        Dbt?.Flush();
+        Fpt?.Flush();
         _dbf.Flush();
     }
 
