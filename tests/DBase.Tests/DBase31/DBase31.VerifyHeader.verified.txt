@@ -1,0 +1,12 @@
+﻿{
+  Version: VisualFoxProWithAutoIncrement,
+  LastUpdateYear: 2,
+  LastUpdateMonth: 8,
+  LastUpdateDay: 2,
+  RecordCount: 77,
+  HeaderLength: 648,
+  RecordLength: 95,
+  TableFlags: HasStructuralCdx,
+  Language: Windows_ANSI_1252,
+  LastUpdate: Date_1
+}

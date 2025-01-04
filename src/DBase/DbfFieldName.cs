@@ -45,7 +45,7 @@ public struct DbfFieldName : IEquatable<DbfFieldName>
         return Encoding.ASCII.GetString(span[..length]);
     }
 
-    public readonly bool Equals(DbfFieldName other) => throw new NotImplementedException();
+    public readonly bool Equals(DbfFieldName other) => ((ReadOnlySpan<byte>)this).SequenceEqual(other);
 
     public override readonly bool Equals(object? obj) => obj is DbfFieldName name && Equals(name);
 
@@ -60,8 +60,4 @@ public struct DbfFieldName : IEquatable<DbfFieldName>
     public static bool operator ==(DbfFieldName left, DbfFieldName right) => left.Equals(right);
 
     public static bool operator !=(DbfFieldName left, DbfFieldName right) => !(left == right);
-
-    public static implicit operator DbfFieldName(ReadOnlySpan<byte> name) => new(name);
-    public static implicit operator DbfFieldName(ReadOnlySpan<char> name) => new(name);
-    public static implicit operator DbfFieldName(string? name) => new(name);
 }

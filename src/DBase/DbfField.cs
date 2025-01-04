@@ -13,9 +13,6 @@ namespace DBase;
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 public readonly struct DbfField : IEquatable<DbfField>
 {
-    // The stored value.
-    // If strings were not supported we could have used 8 bytes to store all types
-    // and avoid boxing/unboxing, but it is what it is.
     private readonly object? _value;
 
     /// <summary>
@@ -87,6 +84,11 @@ public readonly struct DbfField : IEquatable<DbfField>
     public static explicit operator bool?(DbfField field) => (bool?)field._value;
     public static explicit operator bool(DbfField field) => field._value is bool value ? value : throw new InvalidCastException();
 
+    public static implicit operator DbfField(int number) => new(number);
+    public static implicit operator DbfField(int? number) => new(number);
+    public static explicit operator int?(DbfField field) => (int?)field._value;
+    public static explicit operator int(DbfField field) => field._value is int value ? value : throw new InvalidCastException();
+
     public static implicit operator DbfField(long number) => new(number);
     public static implicit operator DbfField(long? number) => new(number);
     public static explicit operator long?(DbfField field) => (long?)field._value;
@@ -96,6 +98,11 @@ public readonly struct DbfField : IEquatable<DbfField>
     public static implicit operator DbfField(double? number) => new(number);
     public static explicit operator double?(DbfField field) => (double?)field._value;
     public static explicit operator double(DbfField field) => field._value is double value ? value : throw new InvalidCastException();
+
+    public static implicit operator DbfField(decimal number) => new(number);
+    public static implicit operator DbfField(decimal? number) => new(number);
+    public static explicit operator decimal?(DbfField field) => (decimal?)field._value;
+    public static explicit operator decimal(DbfField field) => field._value is decimal value ? value : throw new InvalidCastException();
 
     public static implicit operator DbfField(DateTime dateTime) => new(dateTime);
     public static implicit operator DbfField(DateTime? dateTime) => new(dateTime);

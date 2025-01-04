@@ -6,13 +6,42 @@
 public enum DbfFieldType : byte
 {
     /// <summary>
+    /// Automatically incremented <see cref="int" /> values.
+    /// </summary>
+    /// <remarks>
+    /// Deleting a row does not change the field values of other rows. Be aware that adding an auto increment field will pack the table.
+    /// </remarks>
+    AutoIncrement = (byte)'+',
+    /// <summary>
+    /// Like <see cref="Memo" /> fields, but not for text processing.
+    /// </summary>
+    Binary = (byte)'B',
+    /// <summary>
+    /// Like <see cref="Memo" /> fields, but optimized for binary data.
+    /// </summary>
+    Blob = (byte)'W',
+    /// <summary>
     /// Any ASCII text (padded with spaces).
     /// </summary>
     Character = (byte)'C',
     /// <summary>
-    /// <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c> (right justified, padded with whitespace).
+    /// Currency values (stored internally as 8-byte BCD, binary-coded decimal).
     /// </summary>
-    Numeric = (byte)'N',
+    Currency = (byte)'Y',
+    /// <summary>
+    /// Numbers and a character to separate month, day, and year (stored internally as 8 digits in YYYYMMDD format).
+    /// </summary>
+    Date = (byte)'D',
+    /// <summary>
+    /// Date/Time value (stored internally as 8 bytes). The first 4 bytes are a 32-bit little-endian
+    /// integer representation of the Julian date, where Oct. 15, 1582 = 2299161 per www.nr.com/julian.html
+    /// The last 4 bytes are a 32-bit little-endian integer time of day represented as milliseconds since midnight.
+    /// </summary>
+    DateTime = (byte)'T',
+    /// <summary>
+    /// <see cref="double" />. Optimized for speed.
+    /// </summary>
+    Double = (byte)'O',
     /// <summary>
     /// <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c> (right justified, padded with whitespace).
     /// </summary>
@@ -21,31 +50,6 @@ public enum DbfFieldType : byte
     /// <see cref="int" />. Optimized for speed.
     /// </summary>
     Int32 = (byte)'I',
-    /// <summary>
-    /// <see cref="double" />. Optimized for speed.
-    /// </summary>
-    Double = (byte)'O',
-    /// <summary>
-    /// Automatically incremented <see cref="int" /> values.
-    /// </summary>
-    /// <remarks>
-    /// Deleting a row does not change the field values of other rows. Be aware that adding an auto increment field will pack the table.
-    /// </remarks>
-    AutoIncrement = (byte)'+',
-    /// <summary>
-    /// Numbers and a character to separate month, day, and year (stored internally as 8 digits in YYYYMMDD format).
-    /// </summary>
-    Date = (byte)'D',
-    /// <summary>
-    /// Date/Time stamp, including the Date format plus hours, minutes, and seconds, such as hh:MM:ss.
-    /// </summary>
-    Timestamp = (byte)'@',
-    /// <summary>
-    /// Date/Time value (stored internally as 8 bytes). The first 4 bytes are a 32-bit little-endian
-    /// integer representation of the Julian date, where Oct. 15, 1582 = 2299161 per www.nr.com/julian.html
-    /// The last 4 bytes are a 32-bit little-endian integer time of day represented as milliseconds since midnight.
-    /// </summary>
-    DateTime = (byte)'T',
     /// <summary>
     /// <c>Y</c>, <c>y</c>, <c>N</c>, <c>n</c>, <c>T</c>, <c>t</c>, <c>F</c>, <c>f</c>, <c>1</c>, <c>0</c> or <c>?</c> (when uninitialized).
     /// </summary>
@@ -58,15 +62,23 @@ public enum DbfFieldType : byte
     /// </summary>
     Memo = (byte)'M',
     /// <summary>
-    /// Like <see cref="Memo" /> fields, but not for text processing.
+    /// Used for '_NullFlags' in Visual FoxPro. 
     /// </summary>
-    Binary = (byte)'B',
+    NullFlags = (byte)'0',
     /// <summary>
-    /// Like <see cref="Memo" /> fields, but optimized for binary data.
+    /// <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c> (right justified, padded with whitespace).
     /// </summary>
-    Blob = (byte)'W',
+    Numeric = (byte)'N',
     /// <summary>
     /// OLE Objects in MS Windows versions.
     /// </summary>
     Ole = (byte)'G',
+    /// <summary>
+    /// Picture in Fox Pro versions.
+    /// </summary>
+    Picture = (byte)'P',
+    /// <summary>
+    /// Date/Time stamp, including the Date format plus hours, minutes, and seconds, such as hh:MM:ss.
+    /// </summary>
+    Timestamp = (byte)'@',
 }

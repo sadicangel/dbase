@@ -189,6 +189,8 @@ internal static class DbfHelper
             DbfFieldType.Double => ReadDoubleField(source),
             DbfFieldType.Date => ReadDateField(source, encoding),
             DbfFieldType.AutoIncrement => ReadAutoIncrementField(source),
+            DbfFieldType.NullFlags => ReadNullFlagsField(source),
+            DbfFieldType.Currency => ReadCurrencyField(source),
             DbfFieldType.Timestamp => ReadTimestampField(source),
             DbfFieldType.DateTime => ReadDateTimeField(source),
             DbfFieldType.Logical => ReadLogicalField(source, encoding),
@@ -235,6 +237,12 @@ internal static class DbfHelper
             encoding.GetChars(source[..8], date);
             return DateTime.ParseExact(date, "yyyyMMdd", CultureInfo.InvariantCulture);
         }
+
+        static DbfField ReadNullFlagsField(ReadOnlySpan<byte> source) =>
+            Convert.ToHexString(source);
+
+        static DbfField ReadCurrencyField(ReadOnlySpan<byte> source) =>
+            decimal.FromOACurrency(MemoryMarshal.Read<long>(source));
 
         // TODO: Is this correct?
         static DbfField ReadTimestampField(ReadOnlySpan<byte> source)
@@ -325,6 +333,14 @@ internal static class DbfHelper
                 WriteDateField(field, target);
                 break;
 
+            case DbfFieldType.NullFlags:
+                WriteNullFlagsField(field, target);
+                break;
+
+            case DbfFieldType.Currency:
+                WriteCurrencyField(field, target);
+                break;
+
             case DbfFieldType.Timestamp:
                 WriteTimestampField(field, target);
                 break;
@@ -403,7 +419,7 @@ internal static class DbfHelper
 
         static void WriteInt32Field(DbfField field, Span<byte> target)
         {
-            var i32 = (int)field.GetValue<long>();
+            var i32 = field.GetValue<int>();
             MemoryMarshal.Write(target, in i32);
         }
 
@@ -422,6 +438,20 @@ internal static class DbfHelper
                 target[i] = (byte)((m & 10) + '0');
             for (int i = 6, d = date.Day; i < 8; ++i, d /= 10)
                 target[i] = (byte)((d & 10) + '0');
+        }
+
+        static void WriteNullFlagsField(DbfField field, Span<byte> target)
+        {
+            var @string = field.GetValue<string>().AsSpan();
+            if (@string.Length == 0) return;
+
+            Convert.FromHexString(@string, target, out _, out _);
+        }
+
+        static void WriteCurrencyField(DbfField field, Span<byte> target)
+        {
+            var i64 = decimal.ToOACurrency(field.GetValue<decimal>());
+            MemoryMarshal.Write(target, in i64);
         }
 
         static void WriteTimestampField(DbfField field, Span<byte> target)
