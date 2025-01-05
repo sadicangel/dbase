@@ -40,6 +40,7 @@
   <ItemGroup>
     <Content Update="DBase30\DBase30.dbf" Link="DBase30\DBase30.dbf" />
     <Content Update="DBase31\DBase31.dbf" Link="DBase31\DBase31.dbf" />
+    <Content Update="DBase32\DBase32.dbf" Link="DBase32\DBase32.dbf" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,11 @@
+﻿{
+  Version: VisualFoxProWithVarchar,
+  LastUpdateYear: 12,
+  LastUpdateMonth: 1,
+  LastUpdateDay: 29,
+  RecordCount: 1,
+  HeaderLength: 360,
+  RecordLength: 252,
+  Language: Windows_ANSI_1252,
+  LastUpdate: Date_1
+}
