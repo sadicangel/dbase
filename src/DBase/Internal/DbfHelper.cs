@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -94,72 +93,35 @@ internal static class DbfHelper
             throw new NotSupportedException($"Unsupported DBF version '0x{(byte)header.Version:X2}'");
         }
 
+        var builder = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(initialCapacity: 8);
+
         if (header.Version is DbfVersion.DBase02)
         {
             dbf.Position = DbfHeader02.Size;
-
-            var descriptors02 = ArrayPool<DbfFieldDescriptor02>.Shared.Rent(32);
-            dbf.ReadExactly(MemoryMarshal.AsBytes(descriptors02.AsSpan(0, 32)));
-
-            var count = 32;
-            if (dbf.ReadByte() is not 0x0D)
-            {
-                count = Array.FindIndex(descriptors02, static descriptor => descriptor.Name[0] is 0x0D);
-                if (count < 0) count = 32; // Invalid terminator, assume all 32 fields.
-            }
-
-            var descriptors = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(count);
-            for (var i = 0; i < count; ++i)
-                descriptors.Add(descriptors02[i]);
-
-            ArrayPool<DbfFieldDescriptor02>.Shared.Return(descriptors02);
-
-            return descriptors.MoveToImmutable();
+            while (TryReadDescriptor(dbf, out DbfFieldDescriptor02 descriptor))
+                builder.Add(descriptor);
+            dbf.Position = DbfHeader02.Size + builder.Count * DbfFieldDescriptor02.Size;
         }
-
-
-        dbf.Position = DbfHeader.Size;
-
-        var descriptors03 = new DbfFieldDescriptor[(header.HeaderLength - DbfHeader.Size) / DbfFieldDescriptor.Size];
-        dbf.ReadExactly(MemoryMarshal.AsBytes(descriptors03.AsSpan()));
+        else
+        {
+            dbf.Position = DbfHeader.Size;
+            while (TryReadDescriptor(dbf, out DbfFieldDescriptor descriptor))
+                builder.Add(descriptor);
+            dbf.Position = DbfHeader.Size + builder.Count * DbfFieldDescriptor.Size;
+        }
 
         if (dbf.ReadByte() is not 0x0D)
+            throw new InvalidDataException("Invalid DBF header terminator");
+
+        return builder.ToImmutable();
+
+        static bool TryReadDescriptor<T>(Stream dbf, out T descriptor) where T : unmanaged
         {
-            if (!header.Version.IsFoxPro())
-                throw new InvalidDataException("Invalid DBF header terminator");
-
-            // TODO: Move this to a separate method.
-
-            // FoxPro DBF files can have extra metadata after the field descriptors.
-            // We need to find the terminator byte to know where the field descriptors end.
-            var count = Array.FindIndex(descriptors03, static descriptor => descriptor.Name[0] is 0x0D);
-            if (count < 0)
-                throw new InvalidDataException("Invalid DBF header terminator");
-            descriptors03 = descriptors03[..count];
-
-            // TODO: Read FoxPro metadata.
-            //dbf.Position = DbfHeader.Size + DbfFieldDescriptor.Size * count + 1 /* terminator byte */;
-            //var codePage = dbf.ReadByte();
-            //dbf.ReadExactly([0, 0]); // Reserved bytes.
-            //var blockSize = 0;
-            //if (header.TableFlags.HasFlag(DbfTableFlags.HasMemoField))
-            //{
-            //    dbf.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref blockSize, 1)));
-            //}
-            //if (descriptors03.Any(d => d.Flags.HasFlag(DbfFieldFlags.Nullable)))
-            //{
-            //    dbf.ReadExactly(stackalloc byte[(count + 7) / 8]);
-            //}
-            //foreach (var descriptor in descriptors03.Where(d => d.Flags.HasFlag(DbfFieldFlags.AutoIncrement)))
-            //{
-            //    var startValue = 0;
-            //    var stepValue = 0;
-            //    dbf.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref startValue, 1)));
-            //    dbf.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref stepValue, 1)));
-            //}
+            Unsafe.SkipInit(out descriptor);
+            var buffer = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref descriptor, 1));
+            var bytesRead = dbf.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+            return bytesRead == buffer.Length && buffer[0] is not 0x0D;
         }
-
-        return ImmutableCollectionsMarshal.AsImmutableArray(descriptors03);
     }
 
     public static DbfRecord ReadRecord(ReadOnlySpan<byte> source, ImmutableArray<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator)
@@ -196,6 +158,7 @@ internal static class DbfHelper
             DbfFieldType.Logical => ReadLogicalField(source, encoding),
             DbfFieldType.Memo when descriptor.Length != 4 => ReadMemoField(source, encoding),
             DbfFieldType.Memo or DbfFieldType.Binary or DbfFieldType.Blob or DbfFieldType.Ole => ReadBinaryField(source),
+            DbfFieldType.Variant => ReadVariantField(source, encoding),
             _ => throw new InvalidEnumArgumentException(nameof(descriptor.Type), (int)descriptor.Type, typeof(DbfFieldType)),
         };
 
@@ -282,6 +245,9 @@ internal static class DbfHelper
 
         static DbfField ReadBinaryField(ReadOnlySpan<byte> source) =>
             MemoryMarshal.Read<int>(source);
+
+        static DbfField ReadVariantField(ReadOnlySpan<byte> source, Encoding encoding) =>
+            encoding.GetString(source[..source[^1]]);
     }
 
     public static void WriteRecord(DbfRecord record, ImmutableArray<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Span<byte> target)
@@ -365,6 +331,10 @@ internal static class DbfHelper
             case DbfFieldType.Binary:
             case DbfFieldType.Ole:
                 WriteBinaryField(field, target);
+                break;
+
+            case DbfFieldType.Variant:
+                WriteVariantField(field, encoding, target);
                 break;
 
             default:
@@ -477,6 +447,7 @@ internal static class DbfHelper
 
         static void WriteAutoIncrementField(DbfField field, Span<byte> target)
         {
+            // TODO: Should probably make it impossible to change existing fields.
             var i64 = field.GetValue<long>();
             MemoryMarshal.Write(target, in i64);
         }
@@ -485,6 +456,26 @@ internal static class DbfHelper
         {
             var i32 = field.GetValue<int>();
             MemoryMarshal.Write(target, in i32);
+        }
+
+        static void WriteVariantField(DbfField field, Encoding encoding, Span<byte> target)
+        {
+            var @string = field.GetValue<string>().AsSpan();
+            if (@string.Length == 0)
+            {
+                target[^1] = 0;
+                return;
+            }
+
+            // Trim the binary data to fit the target length -1 (as last spot is reserved for length).
+            // TODO: Make this more efficient.
+            int bytesRequired;
+            while ((bytesRequired = encoding.GetByteCount(@string)) > target.Length - 1)
+            {
+                @string = @string[..^1];
+            }
+            var length = encoding.GetBytes(@string, target);
+            target[^1] = (byte)length;
         }
     }
 }

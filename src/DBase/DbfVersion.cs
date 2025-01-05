@@ -41,6 +41,11 @@ public enum DbfVersion : byte
     VisualFoxProWithAutoIncrement = 0x31,
 
     /// <summary>
+    /// Visual FoxPro with field type Varchar or Varbinary.
+    /// </summary>
+    VisualFoxProWithVarchar = 0x32,
+
+    /// <summary>
     /// dBASE IV SQL table without memo fields.
     /// </summary>
     DBase43 = 0x43,

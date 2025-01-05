@@ -81,4 +81,8 @@ public enum DbfFieldType : byte
     /// Date/Time stamp, including the Date format plus hours, minutes, and seconds, such as hh:MM:ss.
     /// </summary>
     Timestamp = (byte)'@',
+    /// <summary>
+    /// Visual Fox Pro varchar or varbinary.
+    /// </summary>
+    Variant = (byte)'V',
 }

@@ -27,8 +27,11 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     [field: FieldOffset(11)]
     public readonly DbfFieldType Type { get; init; }
 
-    [FieldOffset(12)]
-    private readonly int _address; // in memory address.
+    /// <summary>
+    /// Gets the offset of the field in the record.
+    /// </summary>
+    [field: FieldOffset(12)]
+    public readonly int Offset { get; init; }
 
     /// <summary>
     /// Gets or sets the length of the field in binary (maximum 254).
@@ -42,17 +45,26 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     [field: FieldOffset(17)]
     public readonly byte Decimal { get; init; }
 
+    /// <summary>
+    /// Gets the field flags describing special attributes of the field.
+    /// </summary>
     [field: FieldOffset(18)]
     public readonly DbfFieldFlags Flags { get; init; }
 
-    [FieldOffset(20)]
-    private readonly ushort _workAreaId;
+    /// <summary>
+    /// Gets the auto-increment next value.
+    /// </summary>
+    [field: FieldOffset(19)]
+    internal readonly int AutoIncrementNextValue { get; init; }
 
-    [FieldOffset(23)]
-    private readonly int _setFields;
+    /// <summary>
+    /// Gets the auto-increment step value.
+    /// </summary>
+    [field: FieldOffset(23)]
+    internal readonly byte AutoIncrementStepValue { get; init; }
 
-    [FieldOffset(31)]
-    private readonly byte _inMdxFile;
+    [FieldOffset(24)]
+    private readonly long _reserved8;
 
     private unsafe string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
 

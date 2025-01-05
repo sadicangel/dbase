@@ -15,5 +15,5 @@ public static class DbfVersionExtensions
         ((byte)version & 0b1000_0000) != 0;
 
     public static bool IsFoxPro(this DbfVersion version) =>
-        version is DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement;
+        version is DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.VisualFoxProWithVarchar;
 }
