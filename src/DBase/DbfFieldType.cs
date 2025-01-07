@@ -13,7 +13,7 @@ public enum DbfFieldType : byte
     /// </remarks>
     AutoIncrement = (byte)'+',
     /// <summary>
-    /// Like <see cref="Memo" /> fields, but not for text processing.
+    /// Like <see cref="Memo" /> fields, but not for text processing. In Visual FoxPro, it represents a 64-bit integer.
     /// </summary>
     Binary = (byte)'B',
     /// <summary>

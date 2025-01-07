@@ -30,8 +30,8 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     /// <summary>
     /// Gets the offset of the field in the record.
     /// </summary>
-    [field: FieldOffset(12)]
-    public readonly int Offset { get; init; }
+    [FieldOffset(12)]
+    internal readonly int Offset;
 
     /// <summary>
     /// Gets or sets the length of the field in binary (maximum 254).
@@ -51,17 +51,11 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     [field: FieldOffset(18)]
     public readonly DbfFieldFlags Flags { get; init; }
 
-    /// <summary>
-    /// Gets the auto-increment next value.
-    /// </summary>
-    [field: FieldOffset(19)]
-    internal readonly int AutoIncrementNextValue { get; init; }
+    [FieldOffset(19)]
+    internal readonly int AutoIncrementNextValue;
 
-    /// <summary>
-    /// Gets the auto-increment step value.
-    /// </summary>
-    [field: FieldOffset(23)]
-    internal readonly byte AutoIncrementStepValue { get; init; }
+    [FieldOffset(23)]
+    internal readonly byte AutoIncrementStepValue;
 
     [FieldOffset(24)]
     private readonly long _reserved8;

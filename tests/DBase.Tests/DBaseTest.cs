@@ -42,7 +42,7 @@ public abstract class DBaseTest
             foreach (var record in dbf)
             {
                 foreach (var field in record)
-                    writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo));
+                    writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo).ReplaceLineEndings("    "));
                 writer.NextRecord();
             }
         }
@@ -56,37 +56,19 @@ public abstract class DBaseTest
     {
         using var dbf = Dbf.Open(DbfPath);
 
-        var dbt = dbf.Dbt;
-        var fpt = dbf.Fpt;
+        var memo = dbf.Memo;
 
-        if (dbt is not null)
+        if (memo is not null)
         {
             using var writer = new StringWriter();
 
-            var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / dbt.Header.BlockLength);
-            foreach (var record in dbt)
+            var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / memo.BlockLength);
+            foreach (var record in memo)
             {
-                writer.WriteLine($"{index} ({record.Data.Length}b): ");
-                writer.WriteLine(record.ToString());
+                writer.WriteLine($"{index} ({record.Type}) ({record.Length}b): ");
+                writer.WriteLine(dbf.Encoding.GetString(record.Span));
                 writer.WriteLine();
-                index += 1 + record.Data.Length / dbt.Header.BlockLength;
-            }
-
-            var target = writer.ToString();
-
-            return Verifier.Verify(target: target);
-        }
-        else if (fpt is not null)
-        {
-            using var writer = new StringWriter();
-
-            var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / fpt.Header.BlockLength);
-            foreach (var record in fpt)
-            {
-                writer.WriteLine($"{index} ({record.Type}) ({record.Data.Length}b): ");
-                writer.WriteLine(record.ToString());
-                writer.WriteLine();
-                index += 1 + record.Data.Length / fpt.Header.BlockLength;
+                index += 1 + record.Length / memo.BlockLength;
             }
 
             var target = writer.ToString();

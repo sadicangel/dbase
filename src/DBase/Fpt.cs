@@ -2,11 +2,10 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using DBase.Internal;
 
 namespace DBase;
 
-public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
+public sealed class Fpt : IMemo
 {
     private static readonly byte[] s_recordTerminator = [0x1A, 0x1A];
 
@@ -18,7 +17,11 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
 
     private int FirstIndex => Math.Max(1, FptHeader.HeaderLengthInDisk / _header.BlockLength);
 
-    public FptRecord this[int index] { get => Get(index); }
+    public int NextIndex => _header.NextIndex;
+
+    public ushort BlockLength => _header.BlockLength;
+
+    public MemoRecord this[int index] { get => Get(index); }
 
     private Fpt(Stream dbt, FptHeader header)
     {
@@ -33,7 +36,9 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var header = ReadHeader(stream);
+        Unsafe.SkipInit(out FptHeader header);
+        stream.Position = 0;
+        stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
 
         return new Fpt(stream, header);
     }
@@ -53,7 +58,7 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
 
         var dbt = new Fpt(stream, header);
 
-        FptHelper.WriteHeader(stream, header);
+        dbt.WriteHeader();
 
         return dbt;
     }
@@ -69,24 +74,24 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
         if (_dirty)
         {
             _dirty = false;
-            FptHelper.WriteHeader(_fpt, _header);
+            WriteHeader();
         }
         _fpt.Flush();
+    }
+
+    public void Add(MemoRecord record) =>
+        Set(_header.NextIndex, record);
+
+    internal void WriteHeader()
+    {
+        _fpt.Position = 0;
+        _fpt.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref _header, 1)));
     }
 
     internal void SetStreamPositionForIndex(int index) =>
         _fpt.Position = index * _header.BlockLength;
 
-    private static FptHeader ReadHeader(Stream stream)
-    {
-        stream.Position = 0;
-
-        Unsafe.SkipInit(out FptHeader header);
-        stream.ReadAtLeast(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)), minimumBytes: FptHeader.Size);
-        return header;
-    }
-
-    internal bool Get(ref int index, out FptRecord record)
+    internal bool Get(ref int index, out MemoRecord record)
     {
         record = default;
 
@@ -100,26 +105,25 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
         Span<byte> i32 = stackalloc byte[4];
         if (_fpt.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
             return false;
-        var type = (FptRecordType)BinaryPrimitives.ReadInt32BigEndian(i32);
+        var type = (MemoRecordType)BinaryPrimitives.ReadInt32BigEndian(i32);
         if (_fpt.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
             return false;
         var length = BinaryPrimitives.ReadInt32BigEndian(i32);
-        if (length - 8 < 0)
-            return false;
+
         var data = new byte[length];
         if (_fpt.ReadAtLeast(data, data.Length, throwOnEndOfStream: false) != data.Length)
             return false;
-
-        record = new FptRecord(type, data);
         index += 1 + length / _header.BlockLength;
+
+        record = new MemoRecord(type, data);
 
         return true;
     }
 
-    internal FptRecord Get(int index) =>
+    internal MemoRecord Get(int index) =>
         Get(ref index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
-    internal void Set(int index, params ReadOnlySpan<FptRecord> records)
+    internal void Set(int index, params ReadOnlySpan<MemoRecord> records)
     {
         if (records.Length == 0)
         {
@@ -138,14 +142,14 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
 
         foreach (var record in records)
         {
-            BinaryPrimitives.WriteInt32BigEndian(i32, (int)record.Type);
+            BinaryPrimitives.WriteInt32BigEndian(i32, (int)MemoRecordType.Memo);
             _fpt.Write(i32);
-            BinaryPrimitives.WriteInt32BigEndian(i32, record.Data.Length);
+            BinaryPrimitives.WriteInt32BigEndian(i32, record.Length);
             _fpt.Write(i32);
-            _fpt.Write(record.Data);
+            _fpt.Write(record.Span);
             _fpt.Write(s_recordTerminator);
 
-            var length = 8 + record.Data.Length;
+            var length = 8 + record.Length;
             index += 1 + length / _header.BlockLength;
         }
 
@@ -156,7 +160,7 @@ public sealed class Fpt : IDisposable, IEnumerable<FptRecord>
         }
     }
 
-    public IEnumerator<FptRecord> GetEnumerator()
+    public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;
         while (Get(ref index, out var record))
