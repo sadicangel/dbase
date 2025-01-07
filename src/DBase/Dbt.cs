@@ -2,13 +2,12 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using DBase.Internal;
 using DotNext;
 using DotNext.Buffers;
 
 namespace DBase;
 
-public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
+public sealed class Dbt : IMemo
 {
     private static readonly byte[] s_recordTerminator = [0x1A, 0x1A];
 
@@ -20,7 +19,11 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
 
     private int FirstIndex => Math.Max(1, DbtHeader.HeaderLengthInDisk / _header.BlockLength);
 
-    public DbtRecord this[int index] { get => Get(index); }
+    public int NextIndex => _header.NextIndex;
+
+    public ushort BlockLength => _header.BlockLength;
+
+    public MemoRecord this[int index] { get => Get(index); }
 
     private Dbt(Stream dbt, DbtHeader header)
     {
@@ -35,7 +38,9 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var header = ReadHeader(stream);
+        Unsafe.SkipInit(out DbtHeader header);
+        stream.Position = 0;
+        stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
 
         return new Dbt(stream, header);
     }
@@ -56,7 +61,7 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
 
         var dbt = new Dbt(stream, header);
 
-        DbtHelper.WriteHeader(stream, header);
+        dbt.WriteHeader();
 
         return dbt;
     }
@@ -72,24 +77,24 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
         if (_dirty)
         {
             _dirty = false;
-            DbtHelper.WriteHeader(_dbt, _header);
+            WriteHeader();
         }
         _dbt.Flush();
+    }
+
+    public void Add(MemoRecord record) =>
+        Set(_header.NextIndex, record);
+
+    internal void WriteHeader()
+    {
+        _dbt.Position = 0;
+        _dbt.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref _header, 1)));
     }
 
     internal void SetStreamPositionForIndex(int index) =>
         _dbt.Position = index * _header.BlockLength;
 
-    private static DbtHeader ReadHeader(Stream stream)
-    {
-        stream.Position = 0;
-
-        Unsafe.SkipInit(out DbtHeader header);
-        stream.ReadAtLeast(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)), minimumBytes: DbtHeader.Size);
-        return header;
-    }
-
-    internal bool Get(ref int index, out DbtRecord record)
+    internal bool Get(ref int index, out MemoRecord record)
     {
         record = default;
 
@@ -121,15 +126,15 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
             }
         }
 
-        record = new DbtRecord(writer.WrittenSpan);
+        record = new MemoRecord(MemoRecordType.Memo, writer.WrittenSpan.ToArray());
 
         return true;
     }
 
-    internal DbtRecord Get(int index) =>
+    internal MemoRecord Get(int index) =>
         Get(ref index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
-    internal void Set(int index, params ReadOnlySpan<DbtRecord> records)
+    internal void Set(int index, params ReadOnlySpan<MemoRecord> records)
     {
         if (records.Length == 0)
         {
@@ -146,10 +151,10 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
 
         foreach (var record in records)
         {
-            _dbt.Write(record.Data);
+            _dbt.Write(record.Span);
             _dbt.Write(s_recordTerminator);
 
-            var length = record.Data.Length + 2;
+            var length = record.Length + 2;
             index += 1 + length / _header.BlockLength;
         }
 
@@ -160,7 +165,7 @@ public sealed class Dbt : IDisposable, IEnumerable<DbtRecord>
         }
     }
 
-    public IEnumerator<DbtRecord> GetEnumerator()
+    public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;
         while (Get(ref index, out var record))

@@ -35,13 +35,13 @@ public readonly struct DbfField : IEquatable<DbfField>
     /// <returns>
     ///   <see langword="true" /> if this instance is of type <typeparamref name="T"/>; otherwise, <see langword="false" />.
     /// </returns>
-    [MemberNotNullWhen(true, nameof(_value))]
+    [MemberNotNullWhen(true, nameof(Value))]
     public readonly bool IsType<T>() => _value is not null && typeof(T) == _value.GetType();
 
-    public readonly T? GetValue<T>()
+    public readonly T GetValue<T>()
     {
         if (_value is null)
-            return default;
+            throw new InvalidOperationException("Value is null");
 
         if (_value is not T value)
         {
@@ -50,6 +50,8 @@ public readonly struct DbfField : IEquatable<DbfField>
 
         return value;
     }
+
+    public readonly T? GetValueOrDefault<T>() => _value is T value ? value : default;
 
 
     /// <summary>

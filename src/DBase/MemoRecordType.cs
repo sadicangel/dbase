@@ -1,6 +1,6 @@
 ﻿namespace DBase;
 
-public enum FptRecordType : int
+public enum MemoRecordType : int
 {
     Picture = 0x00,
     Memo = 0x01,
