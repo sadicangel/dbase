@@ -2,10 +2,10 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace DBase;
+namespace DBase.Internal;
 
 [StructLayout(LayoutKind.Explicit, Size = Size)]
-public readonly record struct FptHeader
+internal readonly record struct FptHeader
 {
     internal const int Size = 8;
 
