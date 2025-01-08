@@ -1,9 +1,9 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace DBase;
+namespace DBase.Internal;
 
 [StructLayout(LayoutKind.Explicit, Size = Size)]
-public readonly record struct DbtHeader
+internal readonly record struct DbtHeader
 {
     internal const int Size = 24;
 

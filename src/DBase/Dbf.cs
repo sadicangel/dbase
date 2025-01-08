@@ -23,7 +23,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     public Encoding Encoding { get; }
     public char DecimalSeparator { get; }
 
-    public IMemo? Memo { get; }
+    public Memo? Memo { get; }
 
     public int Count
     {
@@ -44,7 +44,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
     public DbfRecord this[int index] { get => ReadRecord(index); }
 
-    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, IMemo? memo)
+    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo)
     {
         _dbf = dbf;
         _header = header;
@@ -61,13 +61,16 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     {
         var dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
         var dbtName = Path.ChangeExtension(fileName, "dbt");
-        var dbt = File.Exists(dbtName) ? new FileStream(dbtName, FileMode.Open, FileAccess.ReadWrite) : null;
-        var fptName = Path.ChangeExtension(fileName, "fpt");
-        var fpt = dbt is null && File.Exists(fptName) ? new FileStream(fptName, FileMode.Open, FileAccess.ReadWrite) : null;
-        return Open(dbf, dbt, fpt);
+        var memo = File.Exists(dbtName) ? new FileStream(dbtName, FileMode.Open, FileAccess.ReadWrite) : null;
+        if (memo is null)
+        {
+            var fptName = Path.ChangeExtension(fileName, "fpt");
+            memo = File.Exists(fptName) ? new FileStream(fptName, FileMode.Open, FileAccess.ReadWrite) : null;
+        }
+        return Open(dbf, memo);
     }
 
-    public static Dbf Open(Stream dbf, Stream? dbt = null, Stream? fpt = null)
+    public static Dbf Open(Stream dbf, Stream? memo = null)
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
@@ -76,7 +79,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             dbf,
             in header,
             descriptors,
-            dbt is not null ? Dbt.Open(dbt) : fpt is not null ? Fpt.Open(fpt) : null);
+            memo is not null ? Memo.Open(memo, header.Version) : null);
     }
 
     public static Dbf Create(
@@ -86,27 +89,25 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         DbfLanguage language = DbfLanguage.ANSI)
     {
         var dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
-        var dbt = default(FileStream);
-        var fpt = default(FileStream);
+        var memo = default(FileStream);
         if (descriptors.GetTableFlags().HasFlag(DbfTableFlags.HasMemoField))
         {
             if (version.IsFoxPro())
             {
-                fpt = new FileStream(Path.ChangeExtension(fileName, "fpt"), FileMode.CreateNew, FileAccess.ReadWrite);
+                memo = new FileStream(Path.ChangeExtension(fileName, "fpt"), FileMode.CreateNew, FileAccess.ReadWrite);
             }
             else
             {
-                dbt = new FileStream(Path.ChangeExtension(fileName, "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
+                memo = new FileStream(Path.ChangeExtension(fileName, "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
             }
         }
-        return Create(dbf, descriptors, dbt, fpt, version, language);
+        return Create(dbf, descriptors, memo, version, language);
     }
 
     public static Dbf Create(
         Stream dbf,
         ImmutableArray<DbfFieldDescriptor> descriptors,
-        Stream? dbt = null,
-        Stream? fpt = null,
+        Stream? memo = null,
         DbfVersion version = DbfVersion.DBase03,
         DbfLanguage language = DbfLanguage.ANSI)
     {
@@ -129,7 +130,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             dbf,
             in header,
             descriptors,
-            dbt is not null ? Dbt.Create(dbt) : fpt is not null ? Fpt.Create(fpt) : null);
+            memo is not null ? Memo.Create(memo, version) : null);
     }
 
     public void Dispose()
@@ -367,9 +368,9 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             };
         }
 
-        static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, IMemo? memo)
+        static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
         {
-            if (memo is null)
+            if (memo is null || source is [])
             {
                 return string.Empty;
             }
@@ -380,6 +381,10 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
                 Span<char> chars = stackalloc char[encoding.GetCharCount(source)];
                 encoding.GetChars(source, chars);
                 chars = chars.Trim();
+                if (chars is [])
+                {
+                    return string.Empty;
+                }
                 index = int.Parse(chars);
             }
             else
@@ -594,7 +599,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             MemoryMarshal.Write(source.Slice(4, 4), milliseconds);
         }
 
-        static void WriteMemo(Span<byte> target, MemoRecordType type, string field, Encoding encoding, IMemo? memo)
+        static void WriteMemo(Span<byte> target, MemoRecordType type, string field, Encoding encoding, Memo? memo)
         {
             if (memo is null)
             {

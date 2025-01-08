@@ -2,6 +2,7 @@
 using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
+using DBase.Internal;
 
 namespace DBase.Tests;
 
