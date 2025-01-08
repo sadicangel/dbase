@@ -397,10 +397,9 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
                 return string.Empty;
             }
 
-            var record = memo[index];
-            return record.Type is MemoRecordType.Memo
-                ? encoding.GetString(record.Span)
-                : Convert.ToBase64String(record.Span);
+            return type is MemoRecordType.Memo
+                ? encoding.GetString(memo[index].Span)
+                : Convert.ToBase64String(memo[index].Span);
         }
 
         static long? ReadNumericI64(ReadOnlySpan<byte> source, Encoding encoding)

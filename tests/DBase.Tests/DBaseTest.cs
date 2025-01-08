@@ -2,7 +2,6 @@
 using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
-using DBase.Internal;
 
 namespace DBase.Tests;
 
@@ -63,13 +62,14 @@ public abstract class DBaseTest
         {
             using var writer = new StringWriter();
 
-            var index = Math.Max(1, DbtHeader.HeaderLengthInDisk / memo.BlockLength);
+            var index = memo.FirstIndex;
             foreach (var record in memo)
             {
                 writer.WriteLine($"{index} ({record.Type}) ({record.Length}b): ");
-                writer.WriteLine(dbf.Encoding.GetString(record.Span));
+                var content = dbf.Encoding.GetString(record.Span);
+                writer.WriteLine(content);
                 writer.WriteLine();
-                index += 1 + record.Length / memo.BlockLength;
+                index += memo.GetBlockCount(record);
             }
 
             var target = writer.ToString();

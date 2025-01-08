@@ -1,0 +1,10 @@
+﻿{
+  Version: FoxPro2WithMemo,
+  LastUpdateYear: 4,
+  LastUpdateMonth: 2,
+  LastUpdateDay: 28,
+  RecordCount: 975,
+  HeaderLength: 1921,
+  RecordLength: 969,
+  LastUpdate: Date_1
+}

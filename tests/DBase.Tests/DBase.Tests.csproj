@@ -37,21 +37,4 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Update="DBase8B\DBase8B.dbf" Link="DBase8B\DBase8B.dbf" />
-    <Content Update="DBase8B\DBase8B.dbt" Link="DBase8B\DBase8B.dbt" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="DBase8B\DBase8B.VerifyHeader.verified.txt">
-      <DependentUpon>DBase8B.cs</DependentUpon>
-    </None>
-    <None Update="DBase8B\DBase8B.VerifyMemo.verified.txt">
-      <DependentUpon>DBase8B.cs</DependentUpon>
-    </None>
-    <None Update="DBase8B\DBase8B.VerifyReader.verified.csv">
-      <DependentUpon>DBase8B.cs</DependentUpon>
-    </None>
-  </ItemGroup>
-
 </Project>
