@@ -9,8 +9,6 @@ internal readonly record struct FptHeader
 {
     internal const int Size = 8;
 
-    internal const ushort HeaderLengthInDisk = 512;
-
     [FieldOffset(0)]
     private readonly Int32BigEndian _nextIndex;
     public int NextIndex { get => _nextIndex.Value; init => _nextIndex.Value = value; }

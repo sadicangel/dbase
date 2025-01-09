@@ -7,8 +7,6 @@ internal readonly record struct DbtHeader
 {
     internal const int Size = 24;
 
-    internal const ushort HeaderLengthInDisk = 512;
-
     [field: FieldOffset(0)]
     public int NextIndex { get; init; }
 
@@ -38,7 +36,7 @@ internal readonly record struct DbtHeader
         get
         {
             var blockLength = Version is 0 ? _blockLength04 : _blockLength03;
-            return blockLength > 0 ? blockLength : HeaderLengthInDisk; // Default to 512, same as header size in disk.
+            return blockLength > 0 ? blockLength : Memo.HeaderLengthInDisk; // Default to 512, same as header size in disk.
         }
         init
         {

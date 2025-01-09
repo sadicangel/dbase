@@ -11,18 +11,20 @@ namespace DBase;
 
 public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 {
+    internal const ushort HeaderLengthInDisk = 512;
+
     private static readonly byte[] s_recordTerminatorV3 = [0x1A, 0x1A];
-    private static readonly byte[] s_recordTerminatorV4 = [0x0D, 0x0A];
-    private static readonly byte[] s_recordNewlineV4 = [0x8D, 0x0A];
 
     private delegate bool GetDelegate(ref int index, out MemoRecord record);
+    private delegate void SetDelegate(int index, params ReadOnlySpan<MemoRecord> records);
 
     private readonly Stream _memo;
     private readonly GetDelegate _get;
+    private readonly SetDelegate _set;
     private readonly DbfVersion _version;
     private bool _dirty;
 
-    private int FirstIndex => Math.Max(1, DbtHeader.HeaderLengthInDisk / BlockLength);
+    internal int FirstIndex => GetBlockCount(HeaderLengthInDisk, BlockLength);
 
     public int NextIndex { get; private set; }
 
@@ -35,12 +37,14 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         _memo = memo;
         (NextIndex, BlockLength) = ReadHeaderInfo(memo, version);
         _version = version;
-        _get = version switch
+        (_get, _set) = version switch
         {
-            DbfVersion.DBase83 => Get83,
-            DbfVersion.DBase8B => Get8B,
-            DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.VisualFoxProWithVarchar => GetFP,
-            //DbfVersion.DBaseF5 => GetFP,
+            DbfVersion.DBase83 => ((GetDelegate)Get83, (SetDelegate)Set83),
+            DbfVersion.DBase8B => (Get8B, Set8B),
+            DbfVersion.VisualFoxPro => (GetFP, SetFP),
+            DbfVersion.VisualFoxProWithAutoIncrement => (GetFP, SetFP),
+            DbfVersion.VisualFoxProWithVarchar => (GetFP, SetFP),
+            DbfVersion.FoxPro2WithMemo => (GetFP, SetFP),
             _ => throw new NotSupportedException($"Unsupported DBF version '{(byte)version}'")
         };
     }
@@ -55,30 +59,43 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         return new Memo(stream, version);
     }
 
-    public static Memo Create(string fileName, DbfVersion version, ushort blockLength = DbtHeader.HeaderLengthInDisk) =>
+    public static Memo Create(string fileName, DbfVersion version, ushort blockLength = HeaderLengthInDisk) =>
         Create(new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite), version, blockLength);
 
-    public static Memo Create(Stream stream, DbfVersion version, ushort blockLength = DbtHeader.HeaderLengthInDisk)
+    public static Memo Create(Stream stream, DbfVersion version, ushort blockLength = HeaderLengthInDisk)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        WriteHeaderInfo(stream, version, Math.Max(1, DbtHeader.HeaderLengthInDisk / blockLength), blockLength);
+        WriteHeaderInfo(stream, version, GetBlockCount(HeaderLengthInDisk, blockLength), blockLength);
 
         return new Memo(stream, version);
     }
+
+    internal int GetBlockCount(MemoRecord record)
+    {
+        var lengthInDisk = _version is DbfVersion.DBase83 ? record.Length : record.Length + 8;
+        return GetBlockCount(lengthInDisk, BlockLength);
+    }
+
+    private static int GetBlockCount(long length, int blockLength) =>
+        (int)((length + blockLength - 1) / blockLength);
 
     private static (int nextIndex, ushort blockLength) ReadHeaderInfo(Stream stream, DbfVersion version)
     {
         switch (version)
         {
-            case DbfVersion.DBase83 or DbfVersion.DBase8B:
+            case DbfVersion.DBase83:
+            case DbfVersion.DBase8B:
                 {
                     Unsafe.SkipInit(out DbtHeader header);
                     stream.Position = 0;
                     stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
                     return (header.NextIndex, header.BlockLength);
                 }
-            case DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.VisualFoxProWithVarchar /*or DbfVersion.DBaseF5*/:
+            case DbfVersion.VisualFoxPro:
+            case DbfVersion.VisualFoxProWithAutoIncrement:
+            case DbfVersion.VisualFoxProWithVarchar:
+            case DbfVersion.FoxPro2WithMemo:
                 {
                     Unsafe.SkipInit(out FptHeader header);
                     stream.Position = 0;
@@ -94,7 +111,8 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     {
         switch (version)
         {
-            case DbfVersion.DBase83 or DbfVersion.DBase8B:
+            case DbfVersion.DBase83:
+            case DbfVersion.DBase8B:
                 {
                     var header = new DbtHeader
                     {
@@ -105,7 +123,11 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
                     stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
                 }
                 break;
-            case DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.VisualFoxProWithVarchar /*or DbfVersion.DBaseF5*/:
+
+            case DbfVersion.VisualFoxPro:
+            case DbfVersion.VisualFoxProWithAutoIncrement:
+            case DbfVersion.VisualFoxProWithVarchar:
+            case DbfVersion.FoxPro2WithMemo:
                 {
                     var header = new FptHeader
                     {
@@ -116,6 +138,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
                     stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
                 }
                 break;
+
             default:
                 throw new NotSupportedException($"Unsupported DBF version '{(byte)version}'");
         }
@@ -137,7 +160,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         _memo.Flush();
     }
 
-    public void Add(MemoRecord record) => Set(NextIndex, record);
+    public void Add(MemoRecord record) => Set83(NextIndex, record);
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
 
@@ -202,7 +225,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         if (_memo.ReadAtLeast(data, length, throwOnEndOfStream: false) != length)
             return false;
-        index += 1 + length / BlockLength;
+        index += GetBlockCount(length + 8, BlockLength);
 
         record = new MemoRecord(MemoRecordType.Memo, data);
 
@@ -224,14 +247,16 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         if (_memo.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
             return false;
         var type = (MemoRecordType)BinaryPrimitives.ReadInt32BigEndian(i32);
+        if (!Enum.IsDefined(type))
+            return false;
         if (_memo.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
             return false;
-        var length = BinaryPrimitives.ReadInt32BigEndian(i32);
+        var length = BinaryPrimitives.ReadUInt32BigEndian(i32);
 
         var data = new byte[length];
         if (_memo.ReadAtLeast(data, data.Length, throwOnEndOfStream: false) != data.Length)
             return false;
-        index += 1 + length / BlockLength;
+        index += GetBlockCount(length + 8, BlockLength);
 
         record = new MemoRecord(type, data);
 
@@ -241,7 +266,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     internal MemoRecord Get(int index) =>
         _get(ref index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
-    internal void Set(int index, params ReadOnlySpan<MemoRecord> records)
+    internal void Set83(int index, params ReadOnlySpan<MemoRecord> records)
     {
         if (records.Length == 0)
         {
@@ -254,22 +279,79 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             throw new NotSupportedException("Random access is not supported");
         }
 
-        SetStreamPositionForIndex(index);
+        foreach (var record in records)
+        {
+            SetStreamPositionForIndex(index);
+            _memo.Write(record.Span);
+            _memo.Write(s_recordTerminatorV3);
+            index += GetBlockCount(record.Length + 2, BlockLength);
+        }
+
+        _dirty = true;
+        NextIndex = index;
+    }
+
+    internal void Set8B(int index, params ReadOnlySpan<MemoRecord> records)
+    {
+        if (records.Length == 0)
+        {
+            return;
+        }
+
+        if (index != NextIndex)
+        {
+            // TODO: Support random access?
+            throw new NotSupportedException("Random access is not supported");
+        }
+
+        Span<byte> buffer = stackalloc byte[4];
 
         foreach (var record in records)
         {
+            var recordLength = (uint)(record.Length + 8);
+
+            SetStreamPositionForIndex(index);
+
+            _memo.Write([0xFF, 0xFF, 0x08, 0x00]);
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer, recordLength);
+            _memo.Write(buffer);
             _memo.Write(record.Span);
-            _memo.Write(s_recordTerminatorV3);
-
-            var length = record.Length + 2;
-            index += 1 + length / BlockLength;
+            index += GetBlockCount(record.Length, BlockLength);
         }
 
-        if (index > NextIndex)
+        _dirty = true;
+        NextIndex = index;
+    }
+
+    internal void SetFP(int index, params ReadOnlySpan<MemoRecord> records)
+    {
+        if (records.Length == 0)
         {
-            _dirty = true;
-            NextIndex = Math.Max(NextIndex, index + 1);
+            return;
         }
+
+        if (index != NextIndex)
+        {
+            // TODO: Support random access?
+            throw new NotSupportedException("Random access is not supported");
+        }
+
+        Span<byte> buffer = stackalloc byte[4];
+
+        foreach (var record in records)
+        {
+            SetStreamPositionForIndex(index);
+
+            BinaryPrimitives.WriteInt32BigEndian(buffer, (int)record.Type);
+            _memo.Write(buffer);
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)record.Length);
+            _memo.Write(buffer);
+            _memo.Write(record.Span);
+            index += GetBlockCount(record.Length + 8, BlockLength);
+        }
+
+        _dirty = true;
+        NextIndex = index;
     }
 
     public IEnumerator<MemoRecord> GetEnumerator()
