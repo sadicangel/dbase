@@ -279,29 +279,80 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             throw new NotSupportedException("Random access is not supported");
         }
 
-        SetStreamPositionForIndex(index);
+        foreach (var record in records)
+        {
+            SetStreamPositionForIndex(index);
+            _memo.Write(record.Span);
+            _memo.Write(s_recordTerminatorV3);
+            index += GetBlockCount(record.Length + 2, BlockLength);
+        }
+
+        _dirty = true;
+        NextIndex = index;
+    }
+
+    internal void Set8B(int index, params ReadOnlySpan<MemoRecord> records)
+    {
+        if (records.Length == 0)
+        {
+            return;
+        }
+
+        if (index != NextIndex)
+        {
+            // TODO: Support random access?
+            throw new NotSupportedException("Random access is not supported");
+        }
+
+        Span<byte> buffer = stackalloc byte[4];
 
         foreach (var record in records)
         {
+            var recordLength = (uint)(record.Length + 8);
+
+            SetStreamPositionForIndex(index);
+
+            _memo.Write([0xFF, 0xFF, 0x08, 0x00]);
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer, recordLength);
+            _memo.Write(buffer);
             _memo.Write(record.Span);
-            _memo.Write(s_recordTerminatorV3);
-
-            var length = record.Length + 2;
-            index += 1 + length / BlockLength;
+            index += GetBlockCount(record.Length, BlockLength);
         }
 
-        if (index > NextIndex)
-        {
-            _dirty = true;
-            NextIndex = Math.Max(NextIndex, index + 1);
-        }
+        _dirty = true;
+        NextIndex = index;
     }
 
-    internal void Set8B(int index, params ReadOnlySpan<MemoRecord> records) =>
-        throw new NotImplementedException();
+    internal void SetFP(int index, params ReadOnlySpan<MemoRecord> records)
+    {
+        if (records.Length == 0)
+        {
+            return;
+        }
 
-    internal void SetFP(int index, params ReadOnlySpan<MemoRecord> records) =>
-        throw new NotImplementedException();
+        if (index != NextIndex)
+        {
+            // TODO: Support random access?
+            throw new NotSupportedException("Random access is not supported");
+        }
+
+        Span<byte> buffer = stackalloc byte[4];
+
+        foreach (var record in records)
+        {
+            SetStreamPositionForIndex(index);
+
+            BinaryPrimitives.WriteInt32BigEndian(buffer, (int)record.Type);
+            _memo.Write(buffer);
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)record.Length);
+            _memo.Write(buffer);
+            _memo.Write(record.Span);
+            index += GetBlockCount(record.Length + 8, BlockLength);
+        }
+
+        _dirty = true;
+        NextIndex = index;
+    }
 
     public IEnumerator<MemoRecord> GetEnumerator()
     {

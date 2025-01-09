@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System.Buffers.Binary;
+using System.Collections;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Globalization;
@@ -313,17 +314,17 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     {
         return descriptor.Type switch
         {
-            DbfFieldType.AutoIncrement => MemoryMarshal.Read<long>(source),
-            DbfFieldType.Binary when descriptor.Length == 8 => MemoryMarshal.Read<double>(source),
+            DbfFieldType.AutoIncrement => BinaryPrimitives.ReadInt64LittleEndian(source),
+            DbfFieldType.Binary when descriptor.Length == 8 => BinaryPrimitives.ReadDoubleLittleEndian(source),
             DbfFieldType.Binary => ReadMemo(source, MemoRecordType.Object, Encoding, Memo),
             DbfFieldType.Blob => ReadMemo(source, MemoRecordType.Object, Encoding, Memo),
             DbfFieldType.Character => Encoding.GetString(source.Trim([(byte)'\0', (byte)' '])),
-            DbfFieldType.Currency => decimal.FromOACurrency(MemoryMarshal.Read<long>(source)),
+            DbfFieldType.Currency => decimal.FromOACurrency(BinaryPrimitives.ReadInt64LittleEndian(source)),
             DbfFieldType.Date => ReadDate(source, Encoding),
             DbfFieldType.DateTime => ReadDateTime(source),
-            DbfFieldType.Double => MemoryMarshal.Read<double>(source),
+            DbfFieldType.Double => BinaryPrimitives.ReadDoubleLittleEndian(source),
             DbfFieldType.Float => ReadNumericF64(source, Encoding, DecimalSeparator),
-            DbfFieldType.Int32 => MemoryMarshal.Read<int>(source),
+            DbfFieldType.Int32 => BinaryPrimitives.ReadInt32LittleEndian(source),
             DbfFieldType.Logical => ReadLogical(source, Encoding),
             DbfFieldType.Memo => ReadMemo(source, MemoRecordType.Memo, Encoding, Memo),
             DbfFieldType.NullFlags => Convert.ToHexString(source),
@@ -347,18 +348,18 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
         static DateTime? ReadDateTime(ReadOnlySpan<byte> source)
         {
-            var julian = MemoryMarshal.Read<int>(source);
+            var julian = BinaryPrimitives.ReadInt32LittleEndian(source);
             if (julian is 0) return default;
-            var milliseconds = MemoryMarshal.Read<int>(source.Slice(4, 4));
+            var milliseconds = BinaryPrimitives.ReadInt32LittleEndian(source.Slice(4, 4));
             return DateTime.FromOADate(julian - 2415018.5).AddMilliseconds(milliseconds);
         }
 
         static bool? ReadLogical(ReadOnlySpan<byte> source, Encoding encoding)
         {
             if (encoding.GetCharCount(source) is not 1) return default;
-            var v = '\0';
-            encoding.GetChars(source, MemoryMarshal.CreateSpan(ref v, 1));
-            return char.ToUpperInvariant(v) switch
+            Span<char> v = ['\0'];
+            encoding.GetChars(source, v);
+            return char.ToUpperInvariant(v[0]) switch
             {
                 '?' or ' ' => null,
                 'T' or 'Y' or '1' => true,
@@ -389,7 +390,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             }
             else
             {
-                index = MemoryMarshal.Read<int>(source);
+                index = BinaryPrimitives.ReadInt32LittleEndian(source);
             }
 
             if (index == 0)
@@ -500,11 +501,11 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         switch (descriptor.Type)
         {
             case DbfFieldType.AutoIncrement:
-                MemoryMarshal.Write(target, field.GetValue<long>());
+                BinaryPrimitives.WriteInt64LittleEndian(target, field.GetValue<long>());
                 break;
 
             case DbfFieldType.Binary when descriptor.Length == 8:
-                MemoryMarshal.Write(target, field.GetValue<double>());
+                BinaryPrimitives.WriteDoubleLittleEndian(target, field.GetValue<double>());
                 break;
 
             case DbfFieldType.Binary:
@@ -520,7 +521,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
                 break;
 
             case DbfFieldType.Currency:
-                MemoryMarshal.Write(target, decimal.ToOACurrency(field.GetValue<decimal>()));
+                BinaryPrimitives.WriteInt64LittleEndian(target, decimal.ToOACurrency(field.GetValue<decimal>()));
                 break;
 
             case DbfFieldType.Date:
@@ -532,7 +533,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
                 break;
 
             case DbfFieldType.Double:
-                MemoryMarshal.Write(target, field.GetValue<double>());
+                BinaryPrimitives.WriteDoubleLittleEndian(target, field.GetValue<double>());
                 break;
 
             case DbfFieldType.Float:
@@ -540,7 +541,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
                 break;
 
             case DbfFieldType.Int32:
-                MemoryMarshal.Write(target, field.GetValue<int>());
+                BinaryPrimitives.WriteInt32LittleEndian(target, field.GetValue<int>());
                 break;
 
             case DbfFieldType.Logical:
@@ -593,9 +594,9 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         static void WriteDateTime(Span<byte> source, DateTime dateTime)
         {
             var julian = (int)(dateTime.Date.ToOADate() + 2415018.5);
-            MemoryMarshal.Write(source, julian);
+            BinaryPrimitives.WriteInt32LittleEndian(source, julian);
             var milliseconds = (int)dateTime.TimeOfDay.TotalMilliseconds;
-            MemoryMarshal.Write(source.Slice(4, 4), milliseconds);
+            BinaryPrimitives.WriteInt32LittleEndian(source.Slice(4, 4), milliseconds);
         }
 
         static void WriteMemo(Span<byte> target, MemoRecordType type, string field, Encoding encoding, Memo? memo)
@@ -618,7 +619,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             }
             else
             {
-                MemoryMarshal.Write(target, index);
+                BinaryPrimitives.WriteInt32LittleEndian(target, index);
             }
         }
 
