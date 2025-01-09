@@ -17,10 +17,12 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     private delegate bool GetDelegate(ref int index, out MemoRecord record);
     private delegate void SetDelegate(int index, params ReadOnlySpan<MemoRecord> records);
+    private delegate int LenDelegate(MemoRecord record);
 
     private readonly Stream _memo;
     private readonly GetDelegate _get;
     private readonly SetDelegate _set;
+    private readonly LenDelegate _len;
     private readonly DbfVersion _version;
     private bool _dirty;
 
@@ -37,14 +39,14 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         _memo = memo;
         (NextIndex, BlockLength) = ReadHeaderInfo(memo, version);
         _version = version;
-        (_get, _set) = version switch
+        (_get, _set, _len) = version switch
         {
-            DbfVersion.DBase83 => ((GetDelegate)Get83, (SetDelegate)Set83),
-            DbfVersion.DBase8B => (Get8B, Set8B),
-            DbfVersion.VisualFoxPro => (GetFP, SetFP),
-            DbfVersion.VisualFoxProWithAutoIncrement => (GetFP, SetFP),
-            DbfVersion.VisualFoxProWithVarchar => (GetFP, SetFP),
-            DbfVersion.FoxPro2WithMemo => (GetFP, SetFP),
+            DbfVersion.DBase83 => ((GetDelegate)Get83, (SetDelegate)Set83, (LenDelegate)Len83),
+            DbfVersion.DBase8B => (Get8B, Set8B, Len8B),
+            DbfVersion.VisualFoxPro => (GetFP, SetFP, LenFP),
+            DbfVersion.VisualFoxProWithAutoIncrement => (GetFP, SetFP, LenFP),
+            DbfVersion.VisualFoxProWithVarchar => (GetFP, SetFP, LenFP),
+            DbfVersion.FoxPro2WithMemo => (GetFP, SetFP, LenFP),
             _ => throw new NotSupportedException($"Unsupported DBF version '{(byte)version}'")
         };
     }
@@ -70,15 +72,6 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         return new Memo(stream, version);
     }
-
-    internal int GetBlockCount(MemoRecord record)
-    {
-        var lengthInDisk = _version is DbfVersion.DBase83 ? record.Length : record.Length + 8;
-        return GetBlockCount(lengthInDisk, BlockLength);
-    }
-
-    private static int GetBlockCount(long length, int blockLength) =>
-        (int)((length + blockLength - 1) / blockLength);
 
     private static (int nextIndex, ushort blockLength) ReadHeaderInfo(Stream stream, DbfVersion version)
     {
@@ -160,6 +153,17 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         _memo.Flush();
     }
 
+    private static int GetBlockCount(long length, int blockLength) =>
+        (int)((length + blockLength - 1) / blockLength);
+
+    internal int GetRecordLengthInDisk(MemoRecord record) => _len(record);
+
+    internal int GetBlockCount(MemoRecord record) => GetBlockCount(GetRecordLengthInDisk(record), BlockLength);
+
+    private static int Len83(MemoRecord record) => record.Length + 2;
+    private static int Len8B(MemoRecord record) => record.Length + 8;
+    private static int LenFP(MemoRecord record) => record.Length + 8;
+
     public void Add(MemoRecord record) => Set83(NextIndex, record);
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
@@ -225,9 +229,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         if (_memo.ReadAtLeast(data, length, throwOnEndOfStream: false) != length)
             return false;
-        index += GetBlockCount(length + 8, BlockLength);
 
         record = new MemoRecord(MemoRecordType.Memo, data);
+        index += GetBlockCount(record);
 
         return true;
     }
@@ -256,9 +260,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         var data = new byte[length];
         if (_memo.ReadAtLeast(data, data.Length, throwOnEndOfStream: false) != data.Length)
             return false;
-        index += GetBlockCount(length + 8, BlockLength);
 
         record = new MemoRecord(type, data);
+        index += GetBlockCount(record);
 
         return true;
     }
@@ -284,7 +288,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             SetStreamPositionForIndex(index);
             _memo.Write(record.Span);
             _memo.Write(s_recordTerminatorV3);
-            index += GetBlockCount(record.Length + 2, BlockLength);
+            index += GetBlockCount(record);
         }
 
         _dirty = true;
@@ -310,13 +314,11 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         {
             var recordLength = (uint)(record.Length + 8);
 
-            SetStreamPositionForIndex(index);
-
             _memo.Write([0xFF, 0xFF, 0x08, 0x00]);
-            BinaryPrimitives.WriteUInt32LittleEndian(buffer, recordLength);
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)GetRecordLengthInDisk(record));
             _memo.Write(buffer);
             _memo.Write(record.Span);
-            index += GetBlockCount(record.Length, BlockLength);
+            index += GetBlockCount(record);
         }
 
         _dirty = true;
@@ -347,7 +349,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)record.Length);
             _memo.Write(buffer);
             _memo.Write(record.Span);
-            index += GetBlockCount(record.Length + 8, BlockLength);
+            index += GetBlockCount(record);
         }
 
         _dirty = true;
