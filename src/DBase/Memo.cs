@@ -1,8 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using DBase.Internal;
 using DotNext;
 using DotNext.Buffers;
@@ -80,9 +78,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             case DbfVersion.DBase83:
             case DbfVersion.DBase8B:
                 {
-                    Unsafe.SkipInit(out DbtHeader header);
-                    stream.Position = 0;
-                    stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
+                    var header = stream.Read<DbtHeader>();
                     return (header.NextIndex, header.BlockLength);
                 }
             case DbfVersion.VisualFoxPro:
@@ -90,9 +86,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             case DbfVersion.VisualFoxProWithVarchar:
             case DbfVersion.FoxPro2WithMemo:
                 {
-                    Unsafe.SkipInit(out FptHeader header);
-                    stream.Position = 0;
-                    stream.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
+                    var header = stream.Read<FptHeader>();
                     return (header.NextIndex, header.BlockLength);
                 }
             default:
@@ -107,13 +101,12 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             case DbfVersion.DBase83:
             case DbfVersion.DBase8B:
                 {
-                    var header = new DbtHeader
+                    stream.Position = 0;
+                    stream.Write(new DbtHeader
                     {
                         NextIndex = nextIndex,
                         BlockLength = blockLength
-                    };
-                    stream.Position = 0;
-                    stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
+                    });
                 }
                 break;
 
@@ -122,13 +115,12 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             case DbfVersion.VisualFoxProWithVarchar:
             case DbfVersion.FoxPro2WithMemo:
                 {
-                    var header = new FptHeader
+                    stream.Position = 0;
+                    stream.Write(new FptHeader
                     {
                         NextIndex = nextIndex,
                         BlockLength = blockLength
-                    };
-                    stream.Position = 0;
-                    stream.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
+                    });
                 }
                 break;
 

@@ -2,9 +2,6 @@
 
 public static class DbfVersionExtensions
 {
-    public static int GetVersionNumber(this DbfVersion version) =>
-        ((byte)version & 0b0000_0111);
-
     public static bool HasDosMemo(this DbfVersion version) =>
         ((byte)version & 0b0000_1000) != 0;
 

@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using DBase.Internal;
 using DotNext.Buffers;
@@ -158,27 +157,14 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         var version = (DbfVersion)dbf.ReadByte();
         dbf.Position = 0;
 
-        if (version.GetVersionNumber() > 7)
+        if (!Enum.IsDefined(version))
         {
             throw new NotSupportedException($"Unsupported DBF version '0x{(byte)version:X2}'");
         }
 
-        Unsafe.SkipInit(out DbfHeader header);
-        if (version is DbfVersion.DBase02)
-        {
-            Unsafe.SkipInit(out DbfHeader02 header02);
-            dbf.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header02, 1)));
-            header = header02;
-        }
-        else
-        {
-            dbf.ReadExactly(MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref header, 1)));
-        }
-
-        if (header.Version.GetVersionNumber() > 7)
-        {
-            throw new NotSupportedException($"Unsupported DBF version '0x{(byte)header.Version:X2}'");
-        }
+        var header = version is DbfVersion.DBase02
+            ? (DbfHeader)dbf.Read<DbfHeader02>()
+            : dbf.Read<DbfHeader>();
 
         var builder = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(initialCapacity: 8);
 
@@ -202,18 +188,13 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
         return (header, builder.ToImmutable());
 
-        static bool TryReadDescriptor<T>(Stream dbf, out T descriptor) where T : unmanaged
-        {
-            Unsafe.SkipInit(out descriptor);
-            var buffer = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref descriptor, 1));
-            var bytesRead = dbf.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
-            return bytesRead == buffer.Length && buffer[0] is not 0x0D;
-        }
+        static bool TryReadDescriptor<T>(Stream dbf, out T descriptor) where T : unmanaged =>
+            dbf.TryRead(out descriptor) && Unsafe.As<T, byte>(ref descriptor) is not 0x0D;
     }
 
     internal static void WriteHeader(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors)
     {
-        if (header.Version.GetVersionNumber() > 7)
+        if (!Enum.IsDefined(header.Version))
         {
             throw new NotSupportedException($"Unsupported DBF version '0x{(byte)header.Version:X2}'");
         }
@@ -222,12 +203,10 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
         if (header.Version is DbfVersion.DBase02)
         {
-            DbfHeader02 header02 = header;
-            dbf.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header02, 1)));
+            dbf.Write((DbfHeader02)header);
             foreach (var descriptor in descriptors)
             {
-                DbfFieldDescriptor02 descriptor02 = descriptor;
-                dbf.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref descriptor02, 1)));
+                dbf.Write((DbfFieldDescriptor02)descriptor);
             }
             dbf.WriteByte(0x0D);
             if (dbf.Position is not DbfHeader02.HeaderLengthInDisk)
@@ -239,8 +218,11 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
         else
         {
-            dbf.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in header, 1)));
-            dbf.Write(MemoryMarshal.AsBytes(descriptors.AsSpan()));
+            dbf.Write(header);
+            foreach (var descriptor in descriptors)
+            {
+                dbf.Write(descriptor);
+            }
             dbf.WriteByte(0x0D);
         }
     }
