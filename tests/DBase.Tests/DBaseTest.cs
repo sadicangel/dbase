@@ -52,6 +52,46 @@ public abstract class DBaseTest
     }
 
     [Fact]
+    public Task VerifyWriter()
+    {
+        using var dbf = ReadThenWrite(DbfPath);
+        using var output = new MemoryStream();
+        using (var writer = new CsvWriter(new StreamWriter(output), s_csvConfiguration.Value))
+        {
+
+            foreach (var descriptor in dbf.Descriptors)
+                writer.WriteField(descriptor.Name.ToString());
+            writer.NextRecord();
+
+            foreach (var record in dbf)
+            {
+                foreach (var field in record)
+                    writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo).ReplaceLineEndings("    "));
+                writer.NextRecord();
+            }
+        }
+
+        var target = Encoding.UTF8.GetString(output.ToArray());
+        return Verifier.Verify(target: target, extension: "csv");
+
+        static Dbf ReadThenWrite(string path)
+        {
+            using var old = Dbf.Open(path);
+            var dbf = Dbf.Create(
+                new MemoryStream(),
+                old.Descriptors,
+                old.Memo is not null ? new MemoryStream() : null,
+                old.Header.Version,
+                old.Header.Language);
+
+            foreach (var record in old)
+                dbf.Add(record);
+
+            return dbf;
+        }
+    }
+
+    [Fact]
     public Task VerifyMemo()
     {
         using var dbf = Dbf.Open(DbfPath);

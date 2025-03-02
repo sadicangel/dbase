@@ -73,6 +73,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     private static (int nextIndex, ushort blockLength) ReadHeaderInfo(Stream stream, DbfVersion version)
     {
+        stream.Position = 0;
         switch (version)
         {
             case DbfVersion.DBase83:
@@ -156,7 +157,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private static int Len8B(MemoRecord record) => record.Length + 8;
     private static int LenFP(MemoRecord record) => record.Length + 8;
 
-    public void Add(MemoRecord record) => Set83(NextIndex, record);
+    public void Add(MemoRecord record) => _set(NextIndex, record);
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
 
@@ -304,10 +305,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         foreach (var record in records)
         {
-            var recordLength = (uint)(record.Length + 8);
+            SetStreamPositionForIndex(index);
 
             _memo.Write([0xFF, 0xFF, 0x08, 0x00]);
-            BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)GetRecordLengthInDisk(record));
+            BinaryPrimitives.WriteInt32LittleEndian(buffer, GetRecordLengthInDisk(record));
             _memo.Write(buffer);
             _memo.Write(record.Span);
             index += GetBlockCount(record);
@@ -338,7 +339,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
             BinaryPrimitives.WriteInt32BigEndian(buffer, (int)record.Type);
             _memo.Write(buffer);
-            BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)record.Length);
+            BinaryPrimitives.WriteUInt32BigEndian(buffer, (uint)record.Length);
             _memo.Write(buffer);
             _memo.Write(record.Span);
             index += GetBlockCount(record);
