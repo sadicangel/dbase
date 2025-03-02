@@ -4,7 +4,7 @@ using System.Text;
 namespace DBase;
 
 [InlineArray(Size)]
-public struct DbfFieldName : IEquatable<DbfFieldName>
+public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<char>>, IEquatable<ReadOnlySpan<byte>>
 {
     internal const int Size = 10;
 
@@ -55,6 +55,16 @@ public struct DbfFieldName : IEquatable<DbfFieldName>
         foreach (var @byte in this)
             hash.Add(@byte);
         return hash.ToHashCode();
+    }
+
+    public readonly bool Equals(ReadOnlySpan<byte> other) => ((ReadOnlySpan<byte>)this).SequenceEqual(other);
+
+    public readonly bool Equals(ReadOnlySpan<char> other)
+    {
+        Span<byte> buffer = stackalloc byte[Size];
+        return Encoding.ASCII.TryGetBytes(other, buffer, out var bytesWritten)
+            && bytesWritten <= Size
+            && ((ReadOnlySpan<byte>)this).SequenceEqual(buffer);
     }
 
     public static bool operator ==(DbfFieldName left, DbfFieldName right) => left.Equals(right);

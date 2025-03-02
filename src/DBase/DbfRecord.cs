@@ -39,4 +39,6 @@ public readonly record struct DbfRecord : IEquatable<DbfRecord>, IReadOnlyList<D
             hash.Add(field);
         return hash.ToHashCode();
     }
+
+    public static implicit operator ReadOnlySpan<DbfField>(DbfRecord record) => record.Fields.AsSpan();
 }

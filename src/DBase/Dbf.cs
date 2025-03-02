@@ -1,8 +1,5 @@
-﻿using System.Buffers.Binary;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Immutable;
-using System.ComponentModel;
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Internal;
@@ -119,7 +116,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             Language = language,
             LastUpdate = DateOnly.FromDateTime(DateTime.Now),
             RecordCount = 0,
-            RecordLength = (ushort)descriptors.Sum(static d => d.Length),
+            RecordLength = (ushort)(1 + descriptors.Sum(static d => d.Length)),
             TableFlags = descriptors.GetTableFlags(),
             Version = version,
         };
@@ -272,7 +269,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         var fields = ImmutableArray.CreateBuilder<DbfField>(Descriptors.Length);
         foreach (var descriptor in Descriptors)
         {
-            var field = ReadField(source.Slice(descriptor.Offset, descriptor.Length), in descriptor);
+            var field = DbfMarshal.ReadField(source.Slice(descriptor.Offset, descriptor.Length), in descriptor, Encoding, DecimalSeparator, Memo);
             fields.Add(field);
         }
 
@@ -289,122 +286,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         var descriptor = Descriptors[fieldIndex];
         Span<byte> buffer = stackalloc byte[descriptor.Length];
         _dbf.ReadExactly(buffer);
-        return ReadField(buffer, in descriptor);
-    }
-
-    private DbfField ReadField(ReadOnlySpan<byte> source, in DbfFieldDescriptor descriptor)
-    {
-        return descriptor.Type switch
-        {
-            DbfFieldType.AutoIncrement => BinaryPrimitives.ReadInt64LittleEndian(source),
-            DbfFieldType.Binary when descriptor.Length == 8 => BinaryPrimitives.ReadDoubleLittleEndian(source),
-            DbfFieldType.Binary => ReadMemo(source, MemoRecordType.Object, Encoding, Memo),
-            DbfFieldType.Blob => ReadMemo(source, MemoRecordType.Object, Encoding, Memo),
-            DbfFieldType.Character => Encoding.GetString(source.Trim([(byte)'\0', (byte)' '])),
-            DbfFieldType.Currency => decimal.FromOACurrency(BinaryPrimitives.ReadInt64LittleEndian(source)),
-            DbfFieldType.Date => ReadDate(source, Encoding),
-            DbfFieldType.DateTime => ReadDateTime(source),
-            DbfFieldType.Double => BinaryPrimitives.ReadDoubleLittleEndian(source),
-            DbfFieldType.Float => ReadNumericF64(source, Encoding, DecimalSeparator),
-            DbfFieldType.Int32 => BinaryPrimitives.ReadInt32LittleEndian(source),
-            DbfFieldType.Logical => ReadLogical(source, Encoding),
-            DbfFieldType.Memo => ReadMemo(source, MemoRecordType.Memo, Encoding, Memo),
-            DbfFieldType.NullFlags => Convert.ToHexString(source),
-            DbfFieldType.Numeric when descriptor.Decimal == 0 => ReadNumericI64(source, Encoding),
-            DbfFieldType.Numeric => ReadNumericF64(source, Encoding, DecimalSeparator),
-            DbfFieldType.Ole => ReadMemo(source, MemoRecordType.Object, Encoding, Memo),
-            DbfFieldType.Picture => ReadMemo(source, MemoRecordType.Picture, Encoding, Memo),
-            DbfFieldType.Timestamp => ReadDateTime(source),
-            DbfFieldType.Variant => Encoding.GetString(source[..source[^1]]),
-            _ => throw new InvalidEnumArgumentException(nameof(descriptor.Type), (int)descriptor.Type, typeof(DbfFieldType)),
-        };
-
-        static DateTime? ReadDate(ReadOnlySpan<byte> source, Encoding encoding)
-        {
-            source = source.Trim([(byte)'\0', (byte)' ']);
-            if (source.Length != 8) return default;
-            Span<char> date = stackalloc char[encoding.GetCharCount(source)];
-            encoding.GetChars(source[..8], date);
-            return DateTime.ParseExact(date, "yyyyMMdd", CultureInfo.InvariantCulture);
-        }
-
-        static DateTime? ReadDateTime(ReadOnlySpan<byte> source)
-        {
-            var julian = BinaryPrimitives.ReadInt32LittleEndian(source);
-            if (julian is 0) return default;
-            var milliseconds = BinaryPrimitives.ReadInt32LittleEndian(source.Slice(4, 4));
-            return DateTime.FromOADate(julian - 2415018.5).AddMilliseconds(milliseconds);
-        }
-
-        static bool? ReadLogical(ReadOnlySpan<byte> source, Encoding encoding)
-        {
-            if (encoding.GetCharCount(source) is not 1) return default;
-            Span<char> v = ['\0'];
-            encoding.GetChars(source, v);
-            return char.ToUpperInvariant(v[0]) switch
-            {
-                '?' or ' ' => null,
-                'T' or 'Y' or '1' => true,
-                'F' or 'N' or '0' => false,
-                // TODO: Maybe we should just return null?
-                _ => throw new InvalidOperationException($"Invalid {nameof(DbfFieldType.Logical)} value '{encoding.GetString(source)}'"),
-            };
-        }
-
-        static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
-        {
-            if (memo is null || source is [])
-            {
-                return string.Empty;
-            }
-
-            var index = 0;
-            if (source.Length != 4)
-            {
-                Span<char> chars = stackalloc char[encoding.GetCharCount(source)];
-                encoding.GetChars(source, chars);
-                chars = chars.Trim();
-                if (chars is [])
-                {
-                    return string.Empty;
-                }
-                index = int.Parse(chars);
-            }
-            else
-            {
-                index = BinaryPrimitives.ReadInt32LittleEndian(source);
-            }
-
-            if (index == 0)
-            {
-                return string.Empty;
-            }
-
-            return type is MemoRecordType.Memo
-                ? encoding.GetString(memo[index].Span)
-                : Convert.ToBase64String(memo[index].Span);
-        }
-
-        static long? ReadNumericI64(ReadOnlySpan<byte> source, Encoding encoding)
-        {
-            source = source.Trim([(byte)'\0', (byte)' ']);
-            if (source.IsEmpty) return default;
-            Span<char> integer = stackalloc char[encoding.GetCharCount(source)];
-            encoding.GetChars(source, integer);
-            return long.Parse(integer, NumberStyles.Integer, CultureInfo.InvariantCulture);
-        }
-
-        static double? ReadNumericF64(ReadOnlySpan<byte> source, Encoding encoding, char decimalSeparator)
-        {
-            source = source.Trim([(byte)'\0', (byte)' ']);
-            if (source.IsEmpty || (source.Length == 1 && !char.IsAsciiDigit((char)source[0])))
-                return default;
-            Span<char> @double = stackalloc char[encoding.GetCharCount(source)];
-            encoding.GetChars(source, @double);
-            if (decimalSeparator != '.' && @double.IndexOf(decimalSeparator) is var idx and >= 0)
-                @double[idx] = '.';
-            return double.Parse(@double, NumberStyles.Number, CultureInfo.InvariantCulture);
-        }
+        return DbfMarshal.ReadField(buffer, in descriptor, Encoding, DecimalSeparator, Memo);
     }
 
     public IEnumerator<DbfRecord> GetEnumerator()
@@ -462,178 +344,17 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     private void WriteRecord(Span<byte> target, DbfRecordStatus status, params ReadOnlySpan<DbfField> fields)
     {
         target[0] = (byte)status;
+        var offset = 1;
         for (var i = 0; i < fields.Length; ++i)
         {
             var descriptor = Descriptors[i];
-            WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, fields[i]);
+            DbfMarshal.WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, fields[i], Encoding, DecimalSeparator, Memo);
+            offset += descriptor.Length;
         }
     }
 
-    private void WriteField(Span<byte> target, in DbfFieldDescriptor descriptor, DbfField field)
-    {
-        target.Fill((byte)' ');
-        if (field.IsNull)
-        {
-            if (descriptor.Type is DbfFieldType.Logical)
-                target[0] = (byte)'?';
 
-            return;
-        }
 
-        switch (descriptor.Type)
-        {
-            case DbfFieldType.AutoIncrement:
-                BinaryPrimitives.WriteInt64LittleEndian(target, field.GetValue<long>());
-                break;
-
-            case DbfFieldType.Binary when descriptor.Length == 8:
-                BinaryPrimitives.WriteDoubleLittleEndian(target, field.GetValue<double>());
-                break;
-
-            case DbfFieldType.Binary:
-                WriteMemo(target, MemoRecordType.Object, field.GetValue<string>(), Encoding, Memo);
-                break;
-
-            case DbfFieldType.Blob:
-                _ = Encoding.TryGetBytes(field.GetValue<string>(), target, out _);
-                break;
-
-            case DbfFieldType.Character:
-                _ = Encoding.TryGetBytes(field.GetValue<string>(), target, out _);
-                break;
-
-            case DbfFieldType.Currency:
-                BinaryPrimitives.WriteInt64LittleEndian(target, decimal.ToOACurrency(field.GetValue<decimal>()));
-                break;
-
-            case DbfFieldType.Date:
-                WriteDate(target, field.GetValue<DateTime>(), Encoding);
-                break;
-
-            case DbfFieldType.DateTime:
-                WriteDateTime(target, field.GetValue<DateTime>());
-                break;
-
-            case DbfFieldType.Double:
-                BinaryPrimitives.WriteDoubleLittleEndian(target, field.GetValue<double>());
-                break;
-
-            case DbfFieldType.Float:
-                WriteNumericF64(target, field.GetValue<double>(), in descriptor, Encoding, DecimalSeparator);
-                break;
-
-            case DbfFieldType.Int32:
-                BinaryPrimitives.WriteInt32LittleEndian(target, field.GetValue<int>());
-                break;
-
-            case DbfFieldType.Logical:
-                target[0] = field.GetValue<bool>() ? (byte)'T' : (byte)'F';
-                break;
-
-            case DbfFieldType.Memo:
-                WriteMemo(target, MemoRecordType.Memo, field.GetValue<string>(), Encoding, Memo);
-                break;
-
-            case DbfFieldType.NullFlags:
-                Convert.FromHexString(field.GetValue<string>(), target, out _, out _);
-                break;
-
-            case DbfFieldType.Numeric when descriptor.Decimal == 0:
-                WriteNumericI64(target, field.GetValue<long>(), Encoding);
-                break;
-
-            case DbfFieldType.Numeric:
-                WriteNumericF64(target, field.GetValue<double>(), in descriptor, Encoding, DecimalSeparator);
-                break;
-
-            case DbfFieldType.Ole:
-                WriteMemo(target, MemoRecordType.Object, field.GetValue<string>(), Encoding, Memo);
-                break;
-
-            case DbfFieldType.Picture:
-                WriteMemo(target, MemoRecordType.Picture, field.GetValue<string>(), Encoding, Memo);
-                break;
-
-            case DbfFieldType.Timestamp:
-                WriteDateTime(target, field.GetValue<DateTime>());
-                break;
-
-            case DbfFieldType.Variant:
-                WriteVariant(target, field.GetValue<string>(), Encoding);
-                break;
-
-            default:
-                throw new InvalidEnumArgumentException(nameof(descriptor.Type), (int)descriptor.Type, typeof(DbfFieldType));
-        }
-
-        static void WriteDate(Span<byte> target, DateTime dateTime, Encoding encoding)
-        {
-            Span<char> chars = stackalloc char[8];
-            _ = dateTime.TryFormat(chars, out _, "yyyyMMdd", CultureInfo.InvariantCulture);
-            _ = encoding.TryGetBytes(chars, target, out _);
-        }
-
-        static void WriteDateTime(Span<byte> source, DateTime dateTime)
-        {
-            var julian = (int)(dateTime.Date.ToOADate() + 2415018.5);
-            BinaryPrimitives.WriteInt32LittleEndian(source, julian);
-            var milliseconds = (int)dateTime.TimeOfDay.TotalMilliseconds;
-            BinaryPrimitives.WriteInt32LittleEndian(source.Slice(4, 4), milliseconds);
-        }
-
-        static void WriteMemo(Span<byte> target, MemoRecordType type, string field, Encoding encoding, Memo? memo)
-        {
-            if (memo is null)
-            {
-                return;
-            }
-
-            var index = memo.NextIndex;
-            var data = type is MemoRecordType.Memo ? encoding.GetBytes(field) : Convert.FromBase64String(field);
-            memo.Add(new MemoRecord(type, data));
-
-            if (target.Length != 4)
-            {
-                Span<char> chars = stackalloc char[10];
-                index.TryFormat(chars, out var charsWritten, default, CultureInfo.InvariantCulture);
-                var bytesRequired = encoding.GetByteCount(chars[..charsWritten]);
-                encoding.TryGetBytes(chars[..charsWritten], target[Math.Max(0, 10 - bytesRequired)..], out _);
-            }
-            else
-            {
-                BinaryPrimitives.WriteInt32LittleEndian(target, index);
-            }
-        }
-
-        static void WriteNumericI64(Span<byte> target, long i64, Encoding encoding)
-        {
-            Span<char> @long = stackalloc char[20];
-            if (!i64.TryFormat(@long, out var charsWritten, "D", CultureInfo.InvariantCulture))
-                throw new InvalidOperationException($"Failed to format value '{i64}' as '{DbfFieldType.Numeric}'");
-            _ = encoding.TryGetBytes(@long, target, out _);
-        }
-
-        static void WriteNumericF64(Span<byte> target, double f64, in DbfFieldDescriptor descriptor, Encoding encoding, char decimalSeparator)
-        {
-            Span<char> format = ['F', '\0', '\0'];
-            if (!descriptor.Decimal.TryFormat(format[1..], out var charsWritten))
-                throw new InvalidOperationException($"Failed to create decimal format");
-            format = format[..(1 + charsWritten)];
-
-            Span<char> chars = stackalloc char[20];
-            if (!f64.TryFormat(chars, out charsWritten, format, CultureInfo.InvariantCulture))
-                throw new InvalidOperationException($"Failed to format value '{f64}' for field type '{descriptor.Type}'");
-
-            if (decimalSeparator is not '.' && chars.IndexOf(decimalSeparator) is var idx and >= 0)
-                chars[idx] = decimalSeparator;
-
-            _ = encoding.TryGetBytes(chars[..charsWritten], target, out _);
-        }
-
-        static void WriteVariant(Span<byte> target, string field, Encoding encoding)
-        {
-            _ = encoding.TryGetBytes(field, target[..^1], out var bytesWritten);
-            target[^1] = (byte)bytesWritten;
-        }
-    }
+    public void Add(params ReadOnlySpan<DbfField> fields) =>
+        WriteRecord(Count, DbfRecordStatus.Valid, fields);
 }

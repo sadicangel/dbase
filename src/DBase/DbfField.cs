@@ -38,20 +38,7 @@ public readonly struct DbfField : IEquatable<DbfField>
     [MemberNotNullWhen(true, nameof(Value))]
     public readonly bool IsType<T>() => _value is not null && typeof(T) == _value.GetType();
 
-    public readonly T GetValue<T>()
-    {
-        if (_value is null)
-            throw new InvalidOperationException("Value is null");
-
-        if (_value is not T value)
-        {
-            throw new InvalidCastException($"Cannot cast value of type '{_value.GetType()}' to '{typeof(T)}'");
-        }
-
-        return value;
-    }
-
-    public readonly T? GetValueOrDefault<T>() => _value is T value ? value : default;
+    public readonly T? GetValue<T>() => _value is T value ? value : default;
 
 
     /// <summary>
