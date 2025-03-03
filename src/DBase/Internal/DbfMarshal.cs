@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
@@ -6,6 +7,42 @@ using System.Text;
 namespace DBase.Internal;
 internal static class DbfMarshal
 {
+    public static DbfRecord ReadRecord(
+        ReadOnlySpan<byte> source,
+        ReadOnlySpan<DbfFieldDescriptor> descriptors,
+        Encoding encoding,
+        char decimalSeparator,
+        Memo? memo)
+    {
+        var status = (DbfRecordStatus)source[0];
+        var fields = ImmutableArray.CreateBuilder<DbfField>(descriptors.Length);
+        foreach (var descriptor in descriptors)
+        {
+            var field = ReadField(source.Slice(descriptor.Offset, descriptor.Length), in descriptor, encoding, decimalSeparator, memo);
+            fields.Add(field);
+        }
+
+        return new DbfRecord(status, fields.MoveToImmutable());
+    }
+    public static void WriteRecord(
+        Span<byte> target,
+        ReadOnlySpan<DbfFieldDescriptor> descriptors,
+        Encoding encoding,
+        char decimalSeparator,
+        Memo? memo,
+        DbfRecordStatus status,
+        params ReadOnlySpan<DbfField> fields)
+    {
+        target[0] = (byte)status;
+        var offset = 1;
+        for (var i = 0; i < fields.Length; ++i)
+        {
+            ref readonly var descriptor = ref descriptors[i];
+            WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, fields[i], encoding, decimalSeparator, memo);
+            offset += descriptor.Length;
+        }
+    }
+
     public static DbfField ReadField(
         ReadOnlySpan<byte> source,
         in DbfFieldDescriptor descriptor,
