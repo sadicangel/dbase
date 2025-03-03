@@ -1,7 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Immutable;
-using DBase.Internal;
+using DBase.Interop;
 using DotNext;
 using DotNext.Buffers;
 

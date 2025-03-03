@@ -1,7 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
-namespace DBase.Internal;
+namespace DBase.Interop;
 
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 internal readonly record struct FptHeader

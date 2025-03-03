@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace DBase.Internal;
+namespace DBase.Interop;
 
 /// <summary>
 /// Describes a <see cref="DbfField" />.

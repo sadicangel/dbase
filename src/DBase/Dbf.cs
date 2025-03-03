@@ -2,7 +2,7 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Text;
-using DBase.Internal;
+using DBase.Interop;
 using DotNext.Buffers;
 
 namespace DBase;

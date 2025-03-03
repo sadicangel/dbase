@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Text;
 
-namespace DBase.Internal;
+namespace DBase.Interop;
 internal static class DbfMarshal
 {
     public static DbfRecord ReadRecord(
@@ -156,9 +156,7 @@ internal static class DbfMarshal
     {
         target.Fill((byte)' ');
         if (value is null)
-        {
             return;
-        }
         _ = encoding.TryGetBytes(value, target, out _);
     }
 
@@ -244,31 +242,23 @@ internal static class DbfMarshal
     private static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
     {
         if (memo is null || source is [])
-        {
             return string.Empty;
-        }
 
         var index = 0;
         if (source.Length is 4)
-        {
             index = BinaryPrimitives.ReadInt32LittleEndian(source);
-        }
         else
         {
             Span<char> chars = stackalloc char[encoding.GetCharCount(source)];
             encoding.GetChars(source, chars);
             chars = chars.Trim();
             if (chars is [])
-            {
                 return string.Empty;
-            }
             index = int.Parse(chars);
         }
 
         if (index == 0)
-        {
             return string.Empty;
-        }
 
         var data = type is MemoRecordType.Memo
             ? encoding.GetString(memo[index].Span)
@@ -280,16 +270,12 @@ internal static class DbfMarshal
     {
         target.Fill(target.Length is 4 ? (byte)0 : (byte)' ');
         if (memo is null || string.IsNullOrEmpty(value))
-        {
             return;
-        }
 
         var index = memo.NextIndex;
 
         if (target.Length is 4)
-        {
             BinaryPrimitives.WriteInt32LittleEndian(target, index);
-        }
         else
         {
             Span<char> chars = stackalloc char[10];
@@ -345,7 +331,7 @@ internal static class DbfMarshal
     public static double? ReadNumericDouble(ReadOnlySpan<byte> source, Encoding encoding, char decimalSeparator)
     {
         source = source.Trim([(byte)'\0', (byte)' ']);
-        if (source.IsEmpty || (source.Length == 1 && !char.IsAsciiDigit((char)source[0])))
+        if (source.IsEmpty || source.Length == 1 && !char.IsAsciiDigit((char)source[0]))
             return default;
         Span<char> @double = stackalloc char[encoding.GetCharCount(source)];
         encoding.GetChars(source, @double);
@@ -357,9 +343,7 @@ internal static class DbfMarshal
     {
         target.Fill((byte)' ');
         if (value is null)
-        {
             return;
-        }
 
         var f64 = value.Value;
 
@@ -390,9 +374,7 @@ internal static class DbfMarshal
     {
         target.Fill((byte)' ');
         if (value is null)
-        {
             return;
-        }
 
         var i64 = value.Value;
 
