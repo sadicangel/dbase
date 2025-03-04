@@ -62,6 +62,23 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
 
     private unsafe string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
 
+    public static DbfFieldDescriptor AutoIncrement(DbfFieldName name)
+    {
+        if (!name.IsValid)
+        {
+            throw new ArgumentException("Invalid field name", nameof(name));
+        }
+
+        return new()
+        {
+            Name = name,
+            Type = DbfFieldType.AutoIncrement,
+            Length = 8,
+            Decimal = 0,
+            Flags = DbfFieldFlags.AutoIncrement,
+        };
+    }
+
     /// <summary>
     /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Character" />.
     /// </summary>

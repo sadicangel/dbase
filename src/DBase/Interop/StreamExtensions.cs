@@ -18,6 +18,7 @@ internal static class StreamExtensions
         if (BitConverter.IsLittleEndian)
             return true;
 
+        // TODO: Does it make sense to cache this?
         var offsets = typeof(T)
             .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
             .Where(f => f.GetCustomAttribute<FieldOffsetAttribute>() is not null)
@@ -36,6 +37,7 @@ internal static class StreamExtensions
         var buffer = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref @struct, 1));
         if (!BitConverter.IsLittleEndian)
         {
+            // TODO: Does it make sense to cache this?
             var offsets = typeof(T)
                 .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
                 .Where(f => f.GetCustomAttribute<FieldOffsetAttribute>() is not null)

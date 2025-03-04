@@ -109,7 +109,7 @@ public abstract class DBaseTest
                 var content = dbf.Encoding.GetString(record.Span);
                 writer.WriteLine(content);
                 writer.WriteLine();
-                index += memo.GetBlockCount(record);
+                index += memo.GetBlockCount(record.Span);
             }
 
             var target = writer.ToString();

@@ -13,9 +13,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     private static readonly byte[] s_recordTerminatorV3 = [0x1A, 0x1A];
 
-    private delegate bool GetDelegate(ref int index, out MemoRecord record);
-    private delegate void SetDelegate(int index, params ReadOnlySpan<MemoRecord> records);
-    private delegate int LenDelegate(MemoRecord record);
+    private delegate bool GetDelegate(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer);
+    private delegate void SetDelegate(int index, MemoRecordType type, ReadOnlySpan<byte> data);
+    private delegate int LenDelegate(ReadOnlySpan<byte> data);
 
     private readonly Stream _memo;
     private readonly GetDelegate _get;
@@ -149,21 +149,23 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private static int GetBlockCount(long length, int blockLength) =>
         (int)((length + blockLength - 1) / blockLength);
 
-    internal int GetRecordLengthInDisk(MemoRecord record) => _len(record);
+    internal int GetRecordLengthInDisk(ReadOnlySpan<byte> record) => _len(record);
 
-    internal int GetBlockCount(MemoRecord record) => GetBlockCount(GetRecordLengthInDisk(record), BlockLength);
+    internal int GetBlockCount(ReadOnlySpan<byte> record) => GetBlockCount(GetRecordLengthInDisk(record), BlockLength);
 
-    private static int Len83(MemoRecord record) => record.Length + 2;
-    private static int Len8B(MemoRecord record) => record.Length + 8;
-    private static int LenFP(MemoRecord record) => record.Length + 8;
+    private static int Len83(ReadOnlySpan<byte> record) => record.Length + 2;
+    private static int Len8B(ReadOnlySpan<byte> record) => record.Length + 8;
+    private static int LenFP(ReadOnlySpan<byte> record) => record.Length + 8;
 
-    public void Add(MemoRecord record) => _set(NextIndex, record);
+    public void Add(MemoRecord record) => _set(NextIndex, record.Type, record.Span);
+
+    public void Add(MemoRecordType type, ReadOnlySpan<byte> data) => _set(NextIndex, type, data);
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
 
-    internal bool Get83(ref int index, out MemoRecord record)
+    internal bool Get83(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
     {
-        record = default;
+        type = default;
 
         if (index >= NextIndex)
         {
@@ -171,8 +173,6 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         }
 
         SetStreamPositionForIndex(index);
-
-        using var writer = new BufferWriterSlim<byte>(BlockLength);
 
         while (true)
         {
@@ -193,14 +193,12 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             }
         }
 
-        record = new MemoRecord(MemoRecordType.Memo, writer.WrittenSpan.ToArray());
-
         return true;
     }
 
-    internal bool Get8B(ref int index, out MemoRecord record)
+    internal bool Get8B(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
     {
-        record = default;
+        type = default;
 
         if (index >= NextIndex)
         {
@@ -223,15 +221,14 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         if (_memo.ReadAtLeast(data, length, throwOnEndOfStream: false) != length)
             return false;
 
-        record = new MemoRecord(MemoRecordType.Memo, data);
-        index += GetBlockCount(record);
+        index += GetBlockCount(data);
 
         return true;
     }
 
-    internal bool GetFP(ref int index, out MemoRecord record)
+    internal bool GetFP(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
     {
-        record = default;
+        type = default;
 
         if (index >= NextIndex)
         {
@@ -243,7 +240,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         Span<byte> i32 = stackalloc byte[4];
         if (_memo.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
             return false;
-        var type = (MemoRecordType)BinaryPrimitives.ReadInt32BigEndian(i32);
+        type = (MemoRecordType)BinaryPrimitives.ReadInt32BigEndian(i32);
         if (!Enum.IsDefined(type))
             return false;
         if (_memo.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
@@ -254,47 +251,45 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         if (_memo.ReadAtLeast(data, data.Length, throwOnEndOfStream: false) != data.Length)
             return false;
 
-        record = new MemoRecord(type, data);
-        index += GetBlockCount(record);
+        index += GetBlockCount(data);
 
         return true;
     }
 
-    internal MemoRecord Get(int index) =>
-        _get(ref index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
-
-    internal void Set83(int index, params ReadOnlySpan<MemoRecord> records)
+    internal MemoRecord Get(int index)
     {
-        if (records.Length == 0)
-        {
-            return;
-        }
+        using var writer = new BufferWriterSlim<byte>(BlockLength);
+        Get(index, out var type, in writer);
+        return new MemoRecord(type, writer.WrittenSpan.ToArray());
+    }
 
+    internal void Get(int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
+    {
+        if (!_get(ref index, out type, in writer))
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+    }
+
+    internal void Set83(int index, MemoRecordType type, ReadOnlySpan<byte> data)
+    {
         if (index != NextIndex)
         {
             // TODO: Support random access?
             throw new NotSupportedException("Random access is not supported");
         }
 
-        foreach (var record in records)
-        {
-            SetStreamPositionForIndex(index);
-            _memo.Write(record.Span);
-            _memo.Write(s_recordTerminatorV3);
-            index += GetBlockCount(record);
-        }
+        SetStreamPositionForIndex(index);
+        _memo.Write(data);
+        _memo.Write(s_recordTerminatorV3);
+        index += GetBlockCount(data);
 
         _dirty = true;
         NextIndex = index;
     }
 
-    internal void Set8B(int index, params ReadOnlySpan<MemoRecord> records)
+    internal void Set8B(int index, MemoRecordType type, ReadOnlySpan<byte> data)
     {
-        if (records.Length == 0)
-        {
-            return;
-        }
-
         if (index != NextIndex)
         {
             // TODO: Support random access?
@@ -303,28 +298,20 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         Span<byte> buffer = stackalloc byte[4];
 
-        foreach (var record in records)
-        {
-            SetStreamPositionForIndex(index);
+        SetStreamPositionForIndex(index);
 
-            _memo.Write([0xFF, 0xFF, 0x08, 0x00]);
-            BinaryPrimitives.WriteInt32LittleEndian(buffer, GetRecordLengthInDisk(record));
-            _memo.Write(buffer);
-            _memo.Write(record.Span);
-            index += GetBlockCount(record);
-        }
+        _memo.Write([0xFF, 0xFF, 0x08, 0x00]);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, GetRecordLengthInDisk(data));
+        _memo.Write(buffer);
+        _memo.Write(data);
+        index += GetBlockCount(data);
 
         _dirty = true;
         NextIndex = index;
     }
 
-    internal void SetFP(int index, params ReadOnlySpan<MemoRecord> records)
+    internal void SetFP(int index, MemoRecordType type, ReadOnlySpan<byte> data)
     {
-        if (records.Length == 0)
-        {
-            return;
-        }
-
         if (index != NextIndex)
         {
             // TODO: Support random access?
@@ -333,17 +320,14 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         Span<byte> buffer = stackalloc byte[4];
 
-        foreach (var record in records)
-        {
-            SetStreamPositionForIndex(index);
+        SetStreamPositionForIndex(index);
 
-            BinaryPrimitives.WriteInt32BigEndian(buffer, (int)record.Type);
-            _memo.Write(buffer);
-            BinaryPrimitives.WriteUInt32BigEndian(buffer, (uint)record.Length);
-            _memo.Write(buffer);
-            _memo.Write(record.Span);
-            index += GetBlockCount(record);
-        }
+        BinaryPrimitives.WriteInt32BigEndian(buffer, (int)type);
+        _memo.Write(buffer);
+        BinaryPrimitives.WriteUInt32BigEndian(buffer, (uint)data.Length);
+        _memo.Write(buffer);
+        _memo.Write(data);
+        index += GetBlockCount(data);
 
         _dirty = true;
         NextIndex = index;
@@ -352,9 +336,11 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;
-        while (_get(ref index, out var record))
+        using var writer = new BufferWriterSlim<byte>(BlockLength);
+        while (_get(ref index, out var type, in writer))
         {
-            yield return record;
+            yield return new MemoRecord(type, writer.WrittenSpan.ToArray());
+            writer.Clear();
         }
     }
 

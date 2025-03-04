@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Interop;
+using DBase.Serialization;
 using DotNext.Buffers;
 
 namespace DBase;
@@ -289,17 +290,17 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
         foreach (var record in records)
         {
-            DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record.Status, record.Fields.AsSpan());
+            DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
             _dbf.Write(buffer.Span);
         }
 
         Count = index + records.Length;
     }
 
-    internal void WriteRecord(int index, DbfRecordStatus status, params ReadOnlySpan<DbfField> fields)
+    internal void WriteRecord(int index, DbfRecord record)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
-        ArgumentOutOfRangeException.ThrowIfNotEqual(fields.Length, Descriptors.Length);
+        ArgumentOutOfRangeException.ThrowIfNotEqual(record.Count, Descriptors.Length);
 
         SetStreamPositionForRecord(index);
 
@@ -307,12 +308,33 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
             : new SpanOwner<byte>(_header.RecordLength);
 
-        DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, status, fields);
+        DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
         _dbf.Write(buffer.Span);
 
         Count = Math.Max(Count, index + 1);
     }
 
-    public void Add(params ReadOnlySpan<DbfField> fields) =>
-        WriteRecord(Count, DbfRecordStatus.Valid, fields);
+    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
+
+        SetStreamPositionForRecord(index);
+
+        var serializer = DbfRecordSerializer.GetSerializer<T>(Descriptors.AsSpan());
+
+        using var buffer = _header.RecordLength < StackallocThreshold
+            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
+            : new SpanOwner<byte>(_header.RecordLength);
+
+        serializer(buffer.Span, record, status, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+        _dbf.Write(buffer.Span);
+
+        Count = Math.Max(Count, index + 1);
+    }
+
+    public void Add(DbfRecord record) =>
+        WriteRecord(Count, record);
+
+    public void Add<T>(T record, DbfRecordStatus status = DbfRecordStatus.Valid) =>
+        WriteRecord(Count, record, status);
 }

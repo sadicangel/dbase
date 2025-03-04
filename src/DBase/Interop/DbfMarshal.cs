@@ -3,6 +3,9 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
+using DotNext.Buffers;
+using DotNext.Buffers.Text;
+using DotNext.Text;
 
 namespace DBase.Interop;
 internal static class DbfMarshal
@@ -30,15 +33,14 @@ internal static class DbfMarshal
         Encoding encoding,
         char decimalSeparator,
         Memo? memo,
-        DbfRecordStatus status,
-        params ReadOnlySpan<DbfField> fields)
+        DbfRecord record)
     {
-        target[0] = (byte)status;
+        target[0] = (byte)record.Status;
         var offset = 1;
-        for (var i = 0; i < fields.Length; ++i)
+        for (var i = 0; i < record.Count; ++i)
         {
             ref readonly var descriptor = ref descriptors[i];
-            WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, fields[i], encoding, decimalSeparator, memo);
+            WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, record[i], encoding, decimalSeparator, memo);
             offset += descriptor.Length;
         }
     }
@@ -152,10 +154,10 @@ internal static class DbfMarshal
 
     public static string ReadCharacter(ReadOnlySpan<byte> source, Encoding encoding)
         => encoding.GetString(source.Trim([(byte)'\0', (byte)' ']));
-    public static void WriteCharacter(Span<byte> target, string? value, Encoding encoding)
+    public static void WriteCharacter(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
     {
         target.Fill((byte)' ');
-        if (value is null)
+        if (value.IsEmpty)
             return;
         _ = encoding.TryGetBytes(value, target, out _);
     }
@@ -246,7 +248,9 @@ internal static class DbfMarshal
 
         var index = 0;
         if (source.Length is 4)
+        {
             index = BinaryPrimitives.ReadInt32LittleEndian(source);
+        }
         else
         {
             Span<char> chars = stackalloc char[encoding.GetCharCount(source)];
@@ -260,22 +264,27 @@ internal static class DbfMarshal
         if (index == 0)
             return string.Empty;
 
+        using var writer = new BufferWriterSlim<byte>(memo.BlockLength);
+        memo.Get(index, out _, in writer);
+
         var data = type is MemoRecordType.Memo
-            ? encoding.GetString(memo[index].Span)
-            : Convert.ToBase64String(memo[index].Span);
+            ? encoding.GetString(writer.WrittenSpan)
+            : Convert.ToBase64String(writer.WrittenSpan);
 
         return data;
     }
-    private static void WriteMemo(Span<byte> target, MemoRecordType type, string? value, Encoding encoding, Memo? memo)
+    private static void WriteMemo(Span<byte> target, MemoRecordType type, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
     {
         target.Fill(target.Length is 4 ? (byte)0 : (byte)' ');
-        if (memo is null || string.IsNullOrEmpty(value))
+        if (memo is null || value.Length is 0)
             return;
 
         var index = memo.NextIndex;
 
         if (target.Length is 4)
+        {
             BinaryPrimitives.WriteInt32LittleEndian(target, index);
+        }
         else
         {
             Span<char> chars = stackalloc char[10];
@@ -284,35 +293,36 @@ internal static class DbfMarshal
             encoding.TryGetBytes(chars[..charsWritten], target[Math.Max(0, 10 - bytesRequired)..], out _);
         }
 
-        var data = type is MemoRecordType.Memo
-            ? encoding.GetBytes(value)
-            : Convert.FromBase64String(value);
-        memo.Add(new MemoRecord(type, data));
+        using var data = type is MemoRecordType.Memo
+           ? encoding.GetBytes(value)
+           : new Base64Decoder().DecodeFromUtf16(value);
+
+        memo.Add(type, data.Span);
     }
 
     public static string? ReadMemoString(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Memo, encoding, memo);
-    public static void WriteMemoString(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoString(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Memo, value, encoding, memo);
 
     public static string? ReadMemoBinary(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Object, encoding, memo);
-    public static void WriteMemoBinary(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoBinary(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Object, value, encoding, memo);
 
     public static string? ReadMemoBlob(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Object, encoding, memo);
-    public static void WriteMemoBlob(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoBlob(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Object, value, encoding, memo);
 
     public static string? ReadMemoOle(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Object, encoding, memo);
-    public static void WriteMemoOle(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoOle(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Object, value, encoding, memo);
 
     public static string? ReadMemoPicture(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Picture, encoding, memo);
-    public static void WriteMemoPicture(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoPicture(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Picture, value, encoding, memo);
 
     public static string ReadNullFlags(ReadOnlySpan<byte> source)
