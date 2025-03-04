@@ -336,11 +336,21 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;
-        using var writer = new BufferWriterSlim<byte>(BlockLength);
-        while (_get(ref index, out var type, in writer))
+        while (Get(ref index, out var record))
         {
-            yield return new MemoRecord(type, writer.WrittenSpan.ToArray());
-            writer.Clear();
+            yield return record;
+        }
+
+        bool Get(ref int index, out MemoRecord record)
+        {
+            using var writer = new BufferWriterSlim<byte>(BlockLength);
+            if (_get(ref index, out var type, in writer))
+            {
+                record = new MemoRecord(type, writer.WrittenSpan.ToArray());
+                return true;
+            }
+            record = default;
+            return false;
         }
     }
 

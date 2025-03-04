@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Interop;
@@ -262,6 +263,36 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         return true;
     }
 
+    internal bool ReadRecord<T>(int recordIndex, [MaybeNullWhen(false)] out T record)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
+
+        record = default;
+
+        if (recordIndex >= Count)
+        {
+            return false;
+        }
+
+        SetStreamPositionForRecord(recordIndex);
+
+        using var buffer = _header.RecordLength < StackallocThreshold
+            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
+            : new SpanOwner<byte>(_header.RecordLength);
+
+        var bytesRead = _dbf.ReadAtLeast(buffer.Span, _header.RecordLength, throwOnEndOfStream: false);
+        if (bytesRead != _header.RecordLength)
+        {
+            return false;
+        }
+
+        var deserializer = DbfRecordSerializer.GetDeserializer<T>(Descriptors.AsSpan());
+
+        record = deserializer(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+
+        return true;
+    }
+
     public IEnumerator<DbfRecord> GetEnumerator()
     {
         var index = 0;
@@ -272,6 +303,15 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
     }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public IEnumerable<T> EnumerateRecords<T>()
+    {
+        var index = 0;
+        while (ReadRecord<T>(index++, out var record))
+        {
+            yield return record;
+        }
+    }
 
     internal void WriteRecords(int index, params ReadOnlySpan<DbfRecord> records)
     {

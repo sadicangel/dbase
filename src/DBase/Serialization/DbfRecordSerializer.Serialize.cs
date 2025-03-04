@@ -6,10 +6,8 @@ using System.Text;
 namespace DBase.Serialization;
 
 public delegate void SerializeRecord<T>(Span<byte> target, T record, DbfRecordStatus status, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
-public delegate T DeserializeRecord<T>(ReadOnlySpan<byte> source, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
 
-
-internal static class DbfRecordSerializer
+internal static partial class DbfRecordSerializer
 {
     private static readonly ConcurrentDictionary<Type, Delegate> s_serializers = [];
 

@@ -327,9 +327,9 @@ internal static class DbfMarshal
 
     public static string ReadNullFlags(ReadOnlySpan<byte> source)
         => Convert.ToHexString(source);
-    public static void WriteNullFlags(Span<byte> target, string? value)
+    public static void WriteNullFlags(Span<byte> target, ReadOnlySpan<char> value)
     {
-        if (value is null)
+        if (value.Length is 0)
         {
             target.Clear();
             return;
@@ -396,9 +396,9 @@ internal static class DbfMarshal
 
     public static string ReadVariant(ReadOnlySpan<byte> source, Encoding encoding)
         => encoding.GetString(source[..source[^1]]);
-    public static void WriteVariant(Span<byte> target, string? value, Encoding encoding)
+    public static void WriteVariant(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
     {
-        if (value is null)
+        if (value.Length is 0)
         {
             target.Fill((byte)' ');
             return;
