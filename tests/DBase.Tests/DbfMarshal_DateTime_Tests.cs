@@ -1,4 +1,4 @@
-﻿using DBase.Internal;
+﻿using DBase.Interop;
 
 namespace DBase.Tests;
 public class DbfMarshal_DateTime_Tests

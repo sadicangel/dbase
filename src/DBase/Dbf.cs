@@ -1,13 +1,14 @@
-﻿using System.Collections;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
-using DBase.Internal;
+using DBase.Interop;
+using DBase.Serialization;
 using DotNext.Buffers;
 
 namespace DBase;
 
-public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
+public sealed class Dbf : IDisposable
 {
     private const int StackallocThreshold = 256;
 
@@ -256,40 +257,42 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             return false;
         }
 
-        record = ReadRecord(buffer.Span);
+        record = DbfMarshal.ReadRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
 
         return true;
     }
 
-    private DbfRecord ReadRecord(ReadOnlySpan<byte> source)
-    {
-        ArgumentOutOfRangeException.ThrowIfNotEqual(source.Length, _header.RecordLength);
-
-        var status = (DbfRecordStatus)source[0];
-        var fields = ImmutableArray.CreateBuilder<DbfField>(Descriptors.Length);
-        foreach (var descriptor in Descriptors)
-        {
-            var field = DbfMarshal.ReadField(source.Slice(descriptor.Offset, descriptor.Length), in descriptor, Encoding, DecimalSeparator, Memo);
-            fields.Add(field);
-        }
-
-        return new DbfRecord(status, fields.MoveToImmutable());
-    }
-
-    internal DbfField ReadField(int recordIndex, int fieldIndex)
+    internal bool ReadRecord<T>(int recordIndex, [MaybeNullWhen(false)] out T record)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(recordIndex, Count);
 
-        SetStreamPositionForField(recordIndex, fieldIndex);
+        record = default;
 
-        var descriptor = Descriptors[fieldIndex];
-        Span<byte> buffer = stackalloc byte[descriptor.Length];
-        _dbf.ReadExactly(buffer);
-        return DbfMarshal.ReadField(buffer, in descriptor, Encoding, DecimalSeparator, Memo);
+        if (recordIndex >= Count)
+        {
+            return false;
+        }
+
+        SetStreamPositionForRecord(recordIndex);
+
+        using var buffer = _header.RecordLength < StackallocThreshold
+            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
+            : new SpanOwner<byte>(_header.RecordLength);
+
+        var bytesRead = _dbf.ReadAtLeast(buffer.Span, _header.RecordLength, throwOnEndOfStream: false);
+        if (bytesRead != _header.RecordLength)
+        {
+            return false;
+        }
+
+        var deserializer = DbfRecordSerializer.GetDeserializer<T>(Descriptors.AsSpan());
+
+        record = deserializer(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+
+        return true;
     }
 
-    public IEnumerator<DbfRecord> GetEnumerator()
+    public IEnumerable<DbfRecord> EnumerateRecords()
     {
         var index = 0;
         while (ReadRecord(index++, out var record))
@@ -298,7 +301,14 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         }
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    public IEnumerable<T> EnumerateRecords<T>()
+    {
+        var index = 0;
+        while (ReadRecord<T>(index++, out var record))
+        {
+            yield return record;
+        }
+    }
 
     internal void WriteRecords(int index, params ReadOnlySpan<DbfRecord> records)
     {
@@ -317,17 +327,17 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
 
         foreach (var record in records)
         {
-            WriteRecord(buffer.Span, record.Status, record.Fields.AsSpan());
+            DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
             _dbf.Write(buffer.Span);
         }
 
         Count = index + records.Length;
     }
 
-    internal void WriteRecord(int index, DbfRecordStatus status, params ReadOnlySpan<DbfField> fields)
+    internal void WriteRecord(int index, DbfRecord record)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
-        ArgumentOutOfRangeException.ThrowIfNotEqual(fields.Length, Descriptors.Length);
+        ArgumentOutOfRangeException.ThrowIfNotEqual(record.Count, Descriptors.Length);
 
         SetStreamPositionForRecord(index);
 
@@ -335,26 +345,33 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
             : new SpanOwner<byte>(_header.RecordLength);
 
-        WriteRecord(buffer.Span, status, fields);
+        DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
         _dbf.Write(buffer.Span);
 
         Count = Math.Max(Count, index + 1);
     }
 
-    private void WriteRecord(Span<byte> target, DbfRecordStatus status, params ReadOnlySpan<DbfField> fields)
+    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status)
     {
-        target[0] = (byte)status;
-        var offset = 1;
-        for (var i = 0; i < fields.Length; ++i)
-        {
-            var descriptor = Descriptors[i];
-            DbfMarshal.WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, fields[i], Encoding, DecimalSeparator, Memo);
-            offset += descriptor.Length;
-        }
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
+
+        SetStreamPositionForRecord(index);
+
+        var serializer = DbfRecordSerializer.GetSerializer<T>(Descriptors.AsSpan());
+
+        using var buffer = _header.RecordLength < StackallocThreshold
+            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
+            : new SpanOwner<byte>(_header.RecordLength);
+
+        serializer(buffer.Span, record, status, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+        _dbf.Write(buffer.Span);
+
+        Count = Math.Max(Count, index + 1);
     }
 
+    public void Add(DbfRecord record) =>
+        WriteRecord(Count, record);
 
-
-    public void Add(params ReadOnlySpan<DbfField> fields) =>
-        WriteRecord(Count, DbfRecordStatus.Valid, fields);
+    public void Add<T>(T record, DbfRecordStatus status = DbfRecordStatus.Valid) =>
+        WriteRecord(Count, record, status);
 }

@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace DBase.Internal;
+namespace DBase.Interop;
 internal static class StreamExtensions
 {
     public static T Read<T>(this Stream stream) where T : struct =>
@@ -13,15 +13,12 @@ internal static class StreamExtensions
         Unsafe.SkipInit(out @struct);
         var buffer = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref @struct, 1));
         if (stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false) != buffer.Length)
-        {
             return false;
-        }
 
         if (BitConverter.IsLittleEndian)
-        {
             return true;
-        }
 
+        // TODO: Does it make sense to cache this?
         var offsets = typeof(T)
             .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
             .Where(f => f.GetCustomAttribute<FieldOffsetAttribute>() is not null)
@@ -40,6 +37,7 @@ internal static class StreamExtensions
         var buffer = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref @struct, 1));
         if (!BitConverter.IsLittleEndian)
         {
+            // TODO: Does it make sense to cache this?
             var offsets = typeof(T)
                 .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
                 .Where(f => f.GetCustomAttribute<FieldOffsetAttribute>() is not null)

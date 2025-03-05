@@ -1,11 +1,50 @@
 ﻿using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
+using DotNext.Buffers;
+using DotNext.Buffers.Text;
+using DotNext.Text;
 
-namespace DBase.Internal;
+namespace DBase.Interop;
 internal static class DbfMarshal
 {
+    public static DbfRecord ReadRecord(
+        ReadOnlySpan<byte> source,
+        ReadOnlySpan<DbfFieldDescriptor> descriptors,
+        Encoding encoding,
+        char decimalSeparator,
+        Memo? memo)
+    {
+        var status = (DbfRecordStatus)source[0];
+        var fields = ImmutableArray.CreateBuilder<DbfField>(descriptors.Length);
+        foreach (var descriptor in descriptors)
+        {
+            var field = ReadField(source.Slice(descriptor.Offset, descriptor.Length), in descriptor, encoding, decimalSeparator, memo);
+            fields.Add(field);
+        }
+
+        return new DbfRecord(status, fields.MoveToImmutable());
+    }
+    public static void WriteRecord(
+        Span<byte> target,
+        ReadOnlySpan<DbfFieldDescriptor> descriptors,
+        Encoding encoding,
+        char decimalSeparator,
+        Memo? memo,
+        DbfRecord record)
+    {
+        target[0] = (byte)record.Status;
+        var offset = 1;
+        for (var i = 0; i < record.Count; ++i)
+        {
+            ref readonly var descriptor = ref descriptors[i];
+            WriteField(target.Slice(descriptor.Offset, descriptor.Length), in descriptor, record[i], encoding, decimalSeparator, memo);
+            offset += descriptor.Length;
+        }
+    }
+
     public static DbfField ReadField(
         ReadOnlySpan<byte> source,
         in DbfFieldDescriptor descriptor,
@@ -115,13 +154,11 @@ internal static class DbfMarshal
 
     public static string ReadCharacter(ReadOnlySpan<byte> source, Encoding encoding)
         => encoding.GetString(source.Trim([(byte)'\0', (byte)' ']));
-    public static void WriteCharacter(Span<byte> target, string? value, Encoding encoding)
+    public static void WriteCharacter(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
     {
         target.Fill((byte)' ');
-        if (value is null)
-        {
+        if (value.IsEmpty)
             return;
-        }
         _ = encoding.TryGetBytes(value, target, out _);
     }
 
@@ -207,9 +244,7 @@ internal static class DbfMarshal
     private static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
     {
         if (memo is null || source is [])
-        {
             return string.Empty;
-        }
 
         var index = 0;
         if (source.Length is 4)
@@ -222,30 +257,35 @@ internal static class DbfMarshal
             encoding.GetChars(source, chars);
             chars = chars.Trim();
             if (chars is [])
-            {
                 return string.Empty;
-            }
             index = int.Parse(chars);
         }
 
         if (index == 0)
-        {
             return string.Empty;
+
+        var writer = new BufferWriterSlim<byte>(memo.BlockLength);
+
+        try
+        {
+            memo.Get(index, out _, ref writer);
+
+            var data = type is MemoRecordType.Memo
+                ? encoding.GetString(writer.WrittenSpan)
+                : Convert.ToBase64String(writer.WrittenSpan);
+
+            return data;
         }
-
-        var data = type is MemoRecordType.Memo
-            ? encoding.GetString(memo[index].Span)
-            : Convert.ToBase64String(memo[index].Span);
-
-        return data;
+        finally
+        {
+            writer.Dispose();
+        }
     }
-    private static void WriteMemo(Span<byte> target, MemoRecordType type, string? value, Encoding encoding, Memo? memo)
+    private static void WriteMemo(Span<byte> target, MemoRecordType type, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
     {
         target.Fill(target.Length is 4 ? (byte)0 : (byte)' ');
-        if (memo is null || string.IsNullOrEmpty(value))
-        {
+        if (memo is null || value.Length is 0)
             return;
-        }
 
         var index = memo.NextIndex;
 
@@ -261,42 +301,43 @@ internal static class DbfMarshal
             encoding.TryGetBytes(chars[..charsWritten], target[Math.Max(0, 10 - bytesRequired)..], out _);
         }
 
-        var data = type is MemoRecordType.Memo
-            ? encoding.GetBytes(value)
-            : Convert.FromBase64String(value);
-        memo.Add(new MemoRecord(type, data));
+        using var data = type is MemoRecordType.Memo
+           ? encoding.GetBytes(value)
+           : new Base64Decoder().DecodeFromUtf16(value);
+
+        memo.Add(type, data.Span);
     }
 
     public static string? ReadMemoString(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Memo, encoding, memo);
-    public static void WriteMemoString(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoString(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Memo, value, encoding, memo);
 
     public static string? ReadMemoBinary(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Object, encoding, memo);
-    public static void WriteMemoBinary(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoBinary(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Object, value, encoding, memo);
 
     public static string? ReadMemoBlob(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Object, encoding, memo);
-    public static void WriteMemoBlob(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoBlob(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Object, value, encoding, memo);
 
     public static string? ReadMemoOle(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Object, encoding, memo);
-    public static void WriteMemoOle(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoOle(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Object, value, encoding, memo);
 
     public static string? ReadMemoPicture(ReadOnlySpan<byte> source, Encoding encoding, Memo? memo)
         => ReadMemo(source, MemoRecordType.Picture, encoding, memo);
-    public static void WriteMemoPicture(Span<byte> target, string? value, Encoding encoding, Memo? memo)
+    public static void WriteMemoPicture(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
         => WriteMemo(target, MemoRecordType.Picture, value, encoding, memo);
 
     public static string ReadNullFlags(ReadOnlySpan<byte> source)
         => Convert.ToHexString(source);
-    public static void WriteNullFlags(Span<byte> target, string? value)
+    public static void WriteNullFlags(Span<byte> target, ReadOnlySpan<char> value)
     {
-        if (value is null)
+        if (value.Length is 0)
         {
             target.Clear();
             return;
@@ -308,7 +349,7 @@ internal static class DbfMarshal
     public static double? ReadNumericDouble(ReadOnlySpan<byte> source, Encoding encoding, char decimalSeparator)
     {
         source = source.Trim([(byte)'\0', (byte)' ']);
-        if (source.IsEmpty || (source.Length == 1 && !char.IsAsciiDigit((char)source[0])))
+        if (source.IsEmpty || source.Length == 1 && !char.IsAsciiDigit((char)source[0]))
             return default;
         Span<char> @double = stackalloc char[encoding.GetCharCount(source)];
         encoding.GetChars(source, @double);
@@ -320,9 +361,7 @@ internal static class DbfMarshal
     {
         target.Fill((byte)' ');
         if (value is null)
-        {
             return;
-        }
 
         var f64 = value.Value;
 
@@ -353,9 +392,7 @@ internal static class DbfMarshal
     {
         target.Fill((byte)' ');
         if (value is null)
-        {
             return;
-        }
 
         var i64 = value.Value;
 
@@ -367,9 +404,9 @@ internal static class DbfMarshal
 
     public static string ReadVariant(ReadOnlySpan<byte> source, Encoding encoding)
         => encoding.GetString(source[..source[^1]]);
-    public static void WriteVariant(Span<byte> target, string? value, Encoding encoding)
+    public static void WriteVariant(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
     {
-        if (value is null)
+        if (value.Length is 0)
         {
             target.Fill((byte)' ');
             return;

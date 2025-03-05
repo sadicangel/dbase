@@ -17,7 +17,7 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
         get
         {
             for (var i = 0; i < Size; ++i)
-                if (char.IsWhiteSpace((char)this[i]))
+                if (!char.IsWhiteSpace((char)this[i]))
                     return true;
             return false;
         }
@@ -70,4 +70,7 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     public static bool operator ==(DbfFieldName left, DbfFieldName right) => left.Equals(right);
 
     public static bool operator !=(DbfFieldName left, DbfFieldName right) => !(left == right);
+
+    public static implicit operator DbfFieldName(ReadOnlySpan<byte> name) => new(name);
+    public static implicit operator DbfFieldName(ReadOnlySpan<char> name) => new(name);
 }

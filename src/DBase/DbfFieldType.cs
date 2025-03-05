@@ -6,7 +6,7 @@
 public enum DbfFieldType : byte
 {
     /// <summary>
-    /// Automatically incremented <see cref="int" /> values.
+    /// Automatically incremented <see cref="long" /> values.
     /// </summary>
     /// <remarks>
     /// Deleting a row does not change the field values of other rows. Be aware that adding an auto increment field will pack the table.
