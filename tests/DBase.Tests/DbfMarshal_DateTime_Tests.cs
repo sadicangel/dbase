@@ -43,32 +43,4 @@ public class DbfMarshal_DateTime_Tests
         var decodedDate = DbfMarshal.ReadDateTime(buffer);
         Assert.Null(decodedDate);
     }
-
-    [Fact]
-    public void QEWR()
-    {
-        using var dbf = Dbf.Create(
-            new MemoryStream(),
-            [
-                DbfFieldDescriptor.AutoIncrement("Id"),
-                DbfFieldDescriptor.Text("Name", 20),
-            ]);
-
-        dbf.Add(new Record(1, "Alice"));
-        dbf.Add(new Record(2, "Bob"));
-
-        foreach (var record in dbf.EnumerateRecords<Record>())
-        {
-            Console.WriteLine($"{record.Id}: {record.Name}");
-        }
-
-        foreach (var record in dbf.EnumerateRecords<Record2>())
-        {
-            Console.WriteLine($"{record.Id}: {record.Name}");
-        }
-
-    }
-
-    private record class Record(long Id, string Name);
-    private record class Record2(long Id, string Name, double Value);
 }

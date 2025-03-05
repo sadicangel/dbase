@@ -264,14 +264,22 @@ internal static class DbfMarshal
         if (index == 0)
             return string.Empty;
 
-        using var writer = new BufferWriterSlim<byte>(memo.BlockLength);
-        memo.Get(index, out _, in writer);
+        var writer = new BufferWriterSlim<byte>(memo.BlockLength);
 
-        var data = type is MemoRecordType.Memo
-            ? encoding.GetString(writer.WrittenSpan)
-            : Convert.ToBase64String(writer.WrittenSpan);
+        try
+        {
+            memo.Get(index, out _, ref writer);
 
-        return data;
+            var data = type is MemoRecordType.Memo
+                ? encoding.GetString(writer.WrittenSpan)
+                : Convert.ToBase64String(writer.WrittenSpan);
+
+            return data;
+        }
+        finally
+        {
+            writer.Dispose();
+        }
     }
     private static void WriteMemo(Span<byte> target, MemoRecordType type, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
     {

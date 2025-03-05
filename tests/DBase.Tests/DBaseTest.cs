@@ -2,23 +2,24 @@
 using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
+using CsvHelper.TypeConversion;
 
 namespace DBase.Tests;
 
-public abstract class DBaseTest
+public abstract class DBaseTest<T>
 {
-    private static readonly Lazy<CsvConfiguration> s_csvConfiguration = new(() =>
+    protected static readonly Lazy<CsvConfiguration> CsvConfiguration = new(() =>
     {
         var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
         culture.DateTimeFormat = (DateTimeFormatInfo)CultureInfo.CreateSpecificCulture("en-GB").DateTimeFormat.Clone();
 
         return new CsvConfiguration(culture)
         {
-            TrimOptions = TrimOptions.None
+            TrimOptions = TrimOptions.None,
         };
     });
 
-    private string DbfPath => Path.Combine(GetType().Name, $"{GetType().Name}.dbf");
+    protected string DbfPath => Path.Combine(GetType().Name, $"{GetType().Name}.dbf");
 
     [Fact]
     public Task VerifyHeader()
@@ -31,23 +32,15 @@ public abstract class DBaseTest
     public Task VerifyReader()
     {
         using var dbf = Dbf.Open(DbfPath);
-        using var output = new MemoryStream();
-        using (var writer = new CsvWriter(new StreamWriter(output), s_csvConfiguration.Value))
-        {
+        var target = WriteCsv(dbf);
+        return Verifier.Verify(target: target, extension: "csv");
+    }
 
-            foreach (var descriptor in dbf.Descriptors)
-                writer.WriteField(descriptor.Name.ToString());
-            writer.NextRecord();
-
-            foreach (var record in dbf)
-            {
-                foreach (var field in record)
-                    writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo).ReplaceLineEndings("    "));
-                writer.NextRecord();
-            }
-        }
-
-        var target = Encoding.UTF8.GetString(output.ToArray());
+    [Fact]
+    public Task VerifyReaderTyped()
+    {
+        using var dbf = Dbf.Open(DbfPath);
+        var target = WriteCsvTyped(dbf);
         return Verifier.Verify(target: target, extension: "csv");
     }
 
@@ -55,23 +48,7 @@ public abstract class DBaseTest
     public Task VerifyWriter()
     {
         using var dbf = ReadThenWrite(DbfPath);
-        using var output = new MemoryStream();
-        using (var writer = new CsvWriter(new StreamWriter(output), s_csvConfiguration.Value))
-        {
-
-            foreach (var descriptor in dbf.Descriptors)
-                writer.WriteField(descriptor.Name.ToString());
-            writer.NextRecord();
-
-            foreach (var record in dbf)
-            {
-                foreach (var field in record)
-                    writer.WriteField(field.ToString(s_csvConfiguration.Value.CultureInfo).ReplaceLineEndings("    "));
-                writer.NextRecord();
-            }
-        }
-
-        var target = Encoding.UTF8.GetString(output.ToArray());
+        var target = WriteCsv(dbf);
         return Verifier.Verify(target: target, extension: "csv");
 
         static Dbf ReadThenWrite(string path)
@@ -84,7 +61,31 @@ public abstract class DBaseTest
                 old.Header.Version,
                 old.Header.Language);
 
-            foreach (var record in old)
+            foreach (var record in old.EnumerateRecords())
+                dbf.Add(record);
+
+            return dbf;
+        }
+    }
+
+    [Fact]
+    public Task VerifyWriterTyped()
+    {
+        using var dbf = ReadThenWrite(DbfPath);
+        var target = WriteCsvTyped(dbf);
+        return Verifier.Verify(target: target, extension: "csv");
+
+        static Dbf ReadThenWrite(string path)
+        {
+            using var old = Dbf.Open(path);
+            var dbf = Dbf.Create(
+                new MemoryStream(),
+                old.Descriptors,
+                old.Memo is not null ? new MemoryStream() : null,
+                old.Header.Version,
+                old.Header.Language);
+
+            foreach (var record in old.EnumerateRecords<T>())
                 dbf.Add(record);
 
             return dbf;
@@ -119,5 +120,61 @@ public abstract class DBaseTest
 
         Assert.Skip($"'{Path.GetFileName(DbfPath)}' does not have a corresponding memo file.");
         return Task.CompletedTask;
+    }
+
+    private static string WriteCsv(Dbf dbf)
+    {
+        using var output = new MemoryStream();
+        using (var writer = new CsvWriter(new StreamWriter(output), CsvConfiguration.Value))
+        {
+            writer.Context.TypeConverterCache.AddConverter(NoLineBreaksStringConverter.Instance);
+            foreach (var descriptor in dbf.Descriptors)
+                writer.WriteField(descriptor.Name.ToString());
+            writer.NextRecord();
+
+            foreach (var record in dbf.EnumerateRecords())
+            {
+                foreach (var field in record)
+                    writer.WriteField(field.ToString(CsvConfiguration.Value.CultureInfo), NoLineBreaksStringConverter.Instance);
+                writer.NextRecord();
+            }
+        }
+
+        return Encoding.UTF8.GetString(output.ToArray());
+    }
+
+    private static string WriteCsvTyped(Dbf dbf)
+    {
+        using var output = new MemoryStream();
+        using (var writer = new CsvWriter(new StreamWriter(output), CsvConfiguration.Value))
+        {
+            writer.Context.TypeConverterCache.AddConverter(NoLineBreaksStringConverter.Instance);
+            foreach (var descriptor in dbf.Descriptors)
+                writer.WriteField(descriptor.Name.ToString());
+            writer.NextRecord();
+
+            foreach (var record in dbf.EnumerateRecords<T>())
+            {
+                writer.WriteRecord(record);
+                writer.NextRecord();
+            }
+        }
+
+        return Encoding.UTF8.GetString(output.ToArray());
+    }
+
+    private sealed class NoLineBreaksStringConverter : TypeConverter<string>
+    {
+        private static readonly StringConverter s_stringConverter = new();
+
+        public static readonly NoLineBreaksStringConverter Instance = new();
+
+        private NoLineBreaksStringConverter() { }
+
+        public override string? ConvertFromString(string? text, IReaderRow row, MemberMapData memberMapData) =>
+            (string?)s_stringConverter.ConvertFromString(text, row, memberMapData);
+
+        public override string? ConvertToString(string? value, IWriterRow row, MemberMapData memberMapData) =>
+            s_stringConverter.ConvertToString(value, row, memberMapData)?.ReplaceLineEndings("    ");
     }
 }

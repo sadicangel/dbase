@@ -1,3 +1,36 @@
 ﻿namespace DBase.Tests.DBase03;
 
-public class DBase03 : DBaseTest;
+public class DBase03 : DBaseTest<DBase03Record>;
+
+public record DBase03Record(
+    string Point_ID,
+    string Type,
+    string Shape,
+    string Circular_D,
+    string Non_circul,
+    string Flow_prese,
+    string Condition,
+    string Comments,
+    DateTime? Date_Visit,
+    string Time,
+    double? Max_PDOP,
+    double? Max_HDOP,
+    string Corr_Type,
+    string Rcvr_Type,
+    DateTime? GPS_Date,
+    string GPS_Time,
+    string Update_Sta,
+    string Feat_Name,
+    string Datafile,
+    double? Unfilt_Pos,
+    double? Filt_Pos,
+    string Data_Dicti,
+    double? GPS_Week,
+    double? GPS_Second,
+    double? GPS_Height,
+    double? Vert_Prec,
+    double? Horz_Prec,
+    double? Std_Dev,
+    double? Northing,
+    double? Easting,
+    double? Point_ID2);

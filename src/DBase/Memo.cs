@@ -13,7 +13,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     private static readonly byte[] s_recordTerminatorV3 = [0x1A, 0x1A];
 
-    private delegate bool GetDelegate(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer);
+    private delegate bool GetDelegate(ref int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer);
     private delegate void SetDelegate(int index, MemoRecordType type, ReadOnlySpan<byte> data);
     private delegate int LenDelegate(ReadOnlySpan<byte> data);
 
@@ -163,9 +163,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
 
-    internal bool Get83(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
+    internal bool Get83(ref int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer)
     {
-        type = default;
+        type = MemoRecordType.Memo;
 
         if (index >= NextIndex)
         {
@@ -196,9 +196,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         return true;
     }
 
-    internal bool Get8B(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
+    internal bool Get8B(ref int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer)
     {
-        type = default;
+        type = MemoRecordType.Memo;
 
         if (index >= NextIndex)
         {
@@ -216,17 +216,19 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             return false;
         var length = BinaryPrimitives.ReadInt32LittleEndian(i32) - 8;
 
-        var data = new byte[length];
+        var data = writer.GetSpan(length)[..length];
 
         if (_memo.ReadAtLeast(data, length, throwOnEndOfStream: false) != length)
             return false;
+
+        writer.Advance(data.Length);
 
         index += GetBlockCount(data);
 
         return true;
     }
 
-    internal bool GetFP(ref int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
+    internal bool GetFP(ref int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer)
     {
         type = default;
 
@@ -245,11 +247,13 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             return false;
         if (_memo.ReadAtLeast(i32, 4, throwOnEndOfStream: false) != 4)
             return false;
-        var length = BinaryPrimitives.ReadUInt32BigEndian(i32);
+        var length = (int)BinaryPrimitives.ReadUInt32BigEndian(i32);
 
-        var data = new byte[length];
-        if (_memo.ReadAtLeast(data, data.Length, throwOnEndOfStream: false) != data.Length)
+        var data = writer.GetSpan(length)[..length];
+        if (_memo.ReadAtLeast(data, length, throwOnEndOfStream: false) != length)
             return false;
+
+        writer.Advance(data.Length);
 
         index += GetBlockCount(data);
 
@@ -258,14 +262,21 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     internal MemoRecord Get(int index)
     {
-        using var writer = new BufferWriterSlim<byte>(BlockLength);
-        Get(index, out var type, in writer);
-        return new MemoRecord(type, writer.WrittenSpan.ToArray());
+        var writer = new BufferWriterSlim<byte>(BlockLength);
+        try
+        {
+            Get(index, out var type, ref writer);
+            return new MemoRecord(type, writer.WrittenSpan.ToArray());
+        }
+        finally
+        {
+            writer.Dispose();
+        }
     }
 
-    internal void Get(int index, out MemoRecordType type, in BufferWriterSlim<byte> writer)
+    internal void Get(int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer)
     {
-        if (!_get(ref index, out type, in writer))
+        if (!_get(ref index, out type, ref writer))
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
@@ -343,14 +354,21 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
         bool Get(ref int index, out MemoRecord record)
         {
-            using var writer = new BufferWriterSlim<byte>(BlockLength);
-            if (_get(ref index, out var type, in writer))
+            var writer = new BufferWriterSlim<byte>(BlockLength);
+            try
             {
-                record = new MemoRecord(type, writer.WrittenSpan.ToArray());
-                return true;
+                if (_get(ref index, out var type, ref writer))
+                {
+                    record = new MemoRecord(type, writer.WrittenSpan.ToArray());
+                    return true;
+                }
+                record = default;
+                return false;
             }
-            record = default;
-            return false;
+            finally
+            {
+                writer.Dispose();
+            }
         }
     }
 

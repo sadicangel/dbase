@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -9,7 +8,7 @@ using DotNext.Buffers;
 
 namespace DBase;
 
-public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
+public sealed class Dbf : IDisposable
 {
     private const int StackallocThreshold = 256;
 
@@ -293,7 +292,7 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
         return true;
     }
 
-    public IEnumerator<DbfRecord> GetEnumerator()
+    public IEnumerable<DbfRecord> EnumerateRecords()
     {
         var index = 0;
         while (ReadRecord(index++, out var record))
@@ -301,8 +300,6 @@ public sealed class Dbf : IDisposable, IReadOnlyList<DbfRecord>
             yield return record;
         }
     }
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public IEnumerable<T> EnumerateRecords<T>()
     {
