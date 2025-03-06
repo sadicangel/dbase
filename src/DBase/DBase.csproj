@@ -6,7 +6,25 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
+  
+  <PropertyGroup>
+    <PackageId>DBase</PackageId>
+    <Title>DBase library for .NET</Title>
+    <Authors>sadicangel</Authors>
+    <Company>sadicangel</Company>
+    <Description>DBase library for reading and writing .dbf files in .NET</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>apache;avro;apacheavro;generator;generation;codegen;codegenerator;codegeneration</PackageTags>
+    <RepositoryUrl>https://github.com/sadicangel/dbase</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!--<PackageIcon>icon.png</PackageIcon>-->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="DotNext.IO" />
