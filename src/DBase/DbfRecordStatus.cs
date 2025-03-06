@@ -5,6 +5,12 @@
 /// </summary>
 public enum DbfRecordStatus : byte
 {
+    /// <summary>
+    /// Record is valid.
+    /// </summary>
     Valid = 0x20,
+    /// <summary>
+    /// Record is deleted.
+    /// </summary>
     Deleted = 0x2A,
 }

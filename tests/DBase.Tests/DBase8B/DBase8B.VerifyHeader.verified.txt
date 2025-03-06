@@ -1,10 +1,15 @@
 ﻿{
   Version: DBase8B,
-  LastUpdateYear: 100,
-  LastUpdateMonth: 6,
-  LastUpdateDay: 12,
-  RecordCount: 10,
+  LastUpdate: 2000-06-12,
   HeaderLength: 225,
   RecordLength: 160,
-  LastUpdate: Date_1
+  RecordCount: 10,
+  Descriptors: [
+    | CHARACTER  | C | 100 |  0 |,
+    | NUMERICAL  | N |  20 |  2 |,
+    | DATE       | D |   8 |  0 |,
+    | LOGICAL    | L |   1 |  0 |,
+    | FLOAT      | F |  20 | 18 |,
+    | MEMO       | M |  10 |  0 |
+  ]
 }

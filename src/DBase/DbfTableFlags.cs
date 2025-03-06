@@ -1,5 +1,8 @@
 ﻿namespace DBase;
 
+/// <summary>
+/// Describes the flags of a dBASE table.
+/// </summary>
 [Flags]
 public enum DbfTableFlags : byte
 {

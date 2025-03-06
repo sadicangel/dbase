@@ -1,12 +1,21 @@
 ﻿{
   Version: VisualFoxProWithAutoIncrement,
-  LastUpdateYear: 2,
-  LastUpdateMonth: 8,
-  LastUpdateDay: 2,
-  RecordCount: 77,
+  Language: Windows_ANSI_1252,
+  LastUpdate: 1902-08-02,
   HeaderLength: 648,
   RecordLength: 95,
-  TableFlags: HasStructuralCdx,
-  Language: Windows_ANSI_1252,
-  LastUpdate: Date_1
+  RecordCount: 77,
+  Descriptors: [
+    | PRODUCTID  | I |   4 |  0 |,
+    | PRODUCTNAM | C |  40 |  0 |,
+    | SUPPLIERID | I |   4 |  0 |,
+    | CATEGORYID | I |   4 |  0 |,
+    | QUANTITYPE | C |  20 |  0 |,
+    | UNITPRICE  | Y |   8 |  4 |,
+    | UNITSINSTO | I |   4 |  0 |,
+    | UNITSONORD | I |   4 |  0 |,
+    | REORDERLEV | I |   4 |  0 |,
+    | DISCONTINU | L |   1 |  0 |,
+    | _NullFlags | 0 |   1 |  0 |
+  ]
 }

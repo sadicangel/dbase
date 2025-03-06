@@ -7,6 +7,9 @@ using DotNext.Buffers;
 
 namespace DBase;
 
+/// <summary>
+/// Represents a memo file associated with a dBASE file.
+/// </summary>
 public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 {
     internal const ushort HeaderLengthInDisk = 512;
@@ -26,10 +29,15 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     internal int FirstIndex => GetBlockCount(HeaderLengthInDisk, BlockLength);
 
-    public int NextIndex { get; private set; }
+    internal int NextIndex { get; private set; }
 
-    public ushort BlockLength { get; }
+    internal ushort BlockLength { get; }
 
+    /// <summary>
+    /// Gets the record at the specified index.
+    /// </summary>
+    /// <param name="index">The index of the record.</param>
+    /// <returns>The <see cref="MemoRecord"/> at the specified index.</returns>
     public MemoRecord this[int index] { get => Get(index); }
 
     private Memo(Stream memo, DbfVersion version)
@@ -49,20 +57,33 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         };
     }
 
+    /// <summary>
+    /// Opens an existing memo file.
+    /// </summary>
+    /// <param name="fileName">The name of the file to open.</param>
+    /// <param name="version">The version of the dBASE file. The version affects how records are read and written.</param>
+    /// <returns>The opened <see cref="Memo"/> file.</returns>
     public static Memo Open(string fileName, DbfVersion version) =>
         Open(new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite), version);
 
-    public static Memo Open(Stream stream, DbfVersion version)
+    internal static Memo Open(Stream stream, DbfVersion version)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         return new Memo(stream, version);
     }
 
+    /// <summary>
+    /// Creates a new memo file.
+    /// </summary>
+    /// <param name="fileName">The name of the file to open.</param>
+    /// <param name="version">The version of the dBASE file. The version affects how records are read and written.</param>
+    /// <param name="blockLength">The length of each block in the memo file.</param>
+    /// <returns>The opened <see cref="Memo"/> file.</returns>
     public static Memo Create(string fileName, DbfVersion version, ushort blockLength = HeaderLengthInDisk) =>
         Create(new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite), version, blockLength);
 
-    public static Memo Create(Stream stream, DbfVersion version, ushort blockLength = HeaderLengthInDisk)
+    internal static Memo Create(Stream stream, DbfVersion version, ushort blockLength = HeaderLengthInDisk)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
@@ -130,12 +151,18 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         }
     }
 
+    /// <summary>
+    /// Releases all resources used by the current instance of the <see cref="Memo"/> class.
+    /// </summary>
     public void Dispose()
     {
         Flush();
         _memo.Dispose();
     }
 
+    /// <summary>
+    /// Flushes the memo file to disk.
+    /// </summary>
     public void Flush()
     {
         if (_dirty)
@@ -157,8 +184,17 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private static int Len8B(ReadOnlySpan<byte> record) => record.Length + 8;
     private static int LenFP(ReadOnlySpan<byte> record) => record.Length + 8;
 
+    /// <summary>
+    /// Adds a record to the memo file.
+    /// </summary>
+    /// <param name="record">The record to add.</param>
     public void Add(MemoRecord record) => _set(NextIndex, record.Type, record.Span);
 
+    /// <summary>
+    /// Adds a record to the memo file.
+    /// </summary>
+    /// <param name="type">The type of the record to add.</param>
+    /// <param name="data">The data of the record to add.</param>
     public void Add(MemoRecordType type, ReadOnlySpan<byte> data) => _set(NextIndex, type, data);
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
@@ -344,6 +380,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         NextIndex = index;
     }
 
+    /// <summary>
+    /// Returns an enumerator that iterates through the memo records.
+    /// </summary>
+    /// <returns>An enumerator that can be used to iterate through the memo records.</returns>
     public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;

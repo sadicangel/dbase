@@ -4,7 +4,7 @@ using DBase.Interop;
 
 namespace DBase.Serialization;
 
-public delegate object? DeserializeField(ReadOnlySpan<byte> source, DbfFieldDescriptor descriptor, Encoding encoding, char decimalSeparator, Memo? memo);
+internal delegate object? DeserializeField(ReadOnlySpan<byte> source, DbfFieldDescriptor descriptor, Encoding encoding, char decimalSeparator, Memo? memo);
 
 internal static partial class DbfFieldSerializer
 {
