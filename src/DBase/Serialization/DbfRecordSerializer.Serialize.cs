@@ -5,7 +5,7 @@ using System.Text;
 
 namespace DBase.Serialization;
 
-public delegate void SerializeRecord<T>(Span<byte> target, T record, DbfRecordStatus status, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
+internal delegate void SerializeRecord<T>(Span<byte> target, T record, DbfRecordStatus status, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
 
 internal static partial class DbfRecordSerializer
 {

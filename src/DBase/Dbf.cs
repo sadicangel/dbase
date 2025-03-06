@@ -8,6 +8,10 @@ using DotNext.Buffers;
 
 namespace DBase;
 
+/// <summary>
+/// Represents a dBASE database file.
+/// </summary>
+/// <remarks>This class cannot be inherited.</remarks>
 public sealed class Dbf : IDisposable
 {
     private const int StackallocThreshold = 256;
@@ -16,13 +20,43 @@ public sealed class Dbf : IDisposable
     private DbfHeader _header;
     private bool _dirty;
 
-    public ref readonly DbfHeader Header => ref _header;
+    /// <summary>
+    /// Gets the field descriptors that define the record structure.
+    /// </summary>
     public ImmutableArray<DbfFieldDescriptor> Descriptors { get; }
+
+    /// <summary>
+    /// Gets the encoding used to read and write text.
+    /// </summary>
     public Encoding Encoding { get; }
+
+    /// <summary>
+    /// Gets the decimal separator used to read and write numeric values.
+    /// </summary>
     public char DecimalSeparator { get; }
 
+    /// <summary>
+    /// Gets the memo file associated with this database file.
+    /// </summary>
     public Memo? Memo { get; }
 
+    /// <summary>
+    /// Gets or sets the date of the last update to the database.
+    /// </summary>
+    public DateOnly LastUpdate
+    {
+        get
+        {
+            var year = 1900 + _header.LastUpdateYear;
+            var month = int.Clamp(_header.LastUpdateMonth, 1, 12);
+            var day = int.Clamp(_header.LastUpdateDay, 1, DateTime.DaysInMonth(year, month));
+            return new(year, month, day);
+        }
+    }
+
+    /// <summary>
+    /// Gets the number of records in the database.
+    /// </summary>
     public int Count
     {
         get => (int)_header.RecordCount;
@@ -30,16 +64,26 @@ public sealed class Dbf : IDisposable
         {
             if (_header.RecordCount != value)
             {
+                var now = DateTime.Now;
                 _header = _header with
                 {
                     RecordCount = (uint)value,
-                    LastUpdate = DateOnly.FromDateTime(DateTime.Now)
+                    LastUpdateYear = (byte)(now.Year - 1900),
+                    LastUpdateMonth = (byte)now.Month,
+                    LastUpdateDay = (byte)now.Day,
                 };
                 _dirty = true;
             }
         }
     }
 
+    /// <summary>
+    /// Gets or sets the record at the specified <paramref name="index"/>.
+    /// </summary>
+    /// <param name="index"></param>
+    /// <returns>
+    /// The <see cref="DbfRecord"/> at the specified index.
+    /// </returns>
     public DbfRecord this[int index] { get => ReadRecord(index); }
 
     private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo)
@@ -55,6 +99,11 @@ public sealed class Dbf : IDisposable
         Memo = memo;
     }
 
+    /// <summary>
+    /// Opens an existing dBASE database file.
+    /// </summary>
+    /// <param name="fileName">The name of the file to open.</param>
+    /// <returns></returns>
     public static Dbf Open(string fileName)
     {
         var dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
@@ -68,7 +117,7 @@ public sealed class Dbf : IDisposable
         return Open(dbf, memo);
     }
 
-    public static Dbf Open(Stream dbf, Stream? memo = null)
+    internal static Dbf Open(Stream dbf, Stream? memo = null)
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
@@ -80,6 +129,14 @@ public sealed class Dbf : IDisposable
             memo is not null ? Memo.Open(memo, header.Version) : null);
     }
 
+    /// <summary>
+    /// Creates a new dBASE database file.
+    /// </summary>
+    /// <param name="fileName">The name of the file to create.</param>
+    /// <param name="descriptors">The field descriptors that define the record structure.</param>
+    /// <param name="version">The version of the dBASE database file.</param>
+    /// <param name="language">The language of the dBASE database file.</param>
+    /// <returns></returns>
     public static Dbf Create(
         string fileName,
         ImmutableArray<DbfFieldDescriptor> descriptors,
@@ -102,7 +159,7 @@ public sealed class Dbf : IDisposable
         return Create(dbf, descriptors, memo, version, language);
     }
 
-    public static Dbf Create(
+    internal static Dbf Create(
         Stream dbf,
         ImmutableArray<DbfFieldDescriptor> descriptors,
         Stream? memo = null,
@@ -111,11 +168,15 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
+        var now = DateTime.Now;
+
         var header = new DbfHeader
         {
             HeaderLength = (ushort)(DbfHeader.Size + descriptors.Length * DbfFieldDescriptor.Size + 1),
             Language = language,
-            LastUpdate = DateOnly.FromDateTime(DateTime.Now),
+            LastUpdateYear = (byte)(now.Year - 1900),
+            LastUpdateMonth = (byte)now.Month,
+            LastUpdateDay = (byte)now.Day,
             RecordCount = 0,
             RecordLength = (ushort)(1 + descriptors.Sum(static d => d.Length)),
             TableFlags = descriptors.GetTableFlags(),
@@ -131,6 +192,9 @@ public sealed class Dbf : IDisposable
             memo is not null ? Memo.Create(memo, version) : null);
     }
 
+    /// <summary>
+    /// Closes the database file and releases any resources associated with it.
+    /// </summary>
     public void Dispose()
     {
         Flush();
@@ -138,6 +202,9 @@ public sealed class Dbf : IDisposable
         _dbf.Dispose();
     }
 
+    /// <summary>
+    /// Flushes the database file to disk.
+    /// </summary>
     public void Flush()
     {
         if (_dirty)
@@ -292,6 +359,10 @@ public sealed class Dbf : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Enumerates all records in the database.
+    /// </summary>
+    /// <returns>The sequence of records in the database.</returns>
     public IEnumerable<DbfRecord> EnumerateRecords()
     {
         var index = 0;
@@ -301,6 +372,11 @@ public sealed class Dbf : IDisposable
         }
     }
 
+    /// <summary>
+    /// Enumerates all records in the database.
+    /// </summary>
+    /// <typeparam name="T">The type of the record.</typeparam>
+    /// <returns>The sequence of records in the database.</returns>
     public IEnumerable<T> EnumerateRecords<T>()
     {
         var index = 0;
@@ -369,9 +445,19 @@ public sealed class Dbf : IDisposable
         Count = Math.Max(Count, index + 1);
     }
 
+    /// <summary>
+    /// Adds a new record to the database.
+    /// </summary>
+    /// <param name="record">The record to add.</param>
     public void Add(DbfRecord record) =>
         WriteRecord(Count, record);
 
+    /// <summary>
+    /// Adds a new record to the database.
+    /// </summary>
+    /// <typeparam name="T">The type of the record.</typeparam>
+    /// <param name="record">The record to add.</param>
+    /// <param name="status">The status of the record.</param>
     public void Add<T>(T record, DbfRecordStatus status = DbfRecordStatus.Valid) =>
         WriteRecord(Count, record, status);
 }

@@ -4,29 +4,53 @@ using System.Runtime.InteropServices;
 
 namespace DBase;
 
+/// <summary>
+/// Represents the header of a dBASE file.
+/// </summary>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 public readonly record struct DbfHeader
 {
     internal const int Size = 32;
 
+    /// <summary>
+    /// Gets or sets the version of the dBASE file.
+    /// </summary>
     [field: FieldOffset(0)]
     public DbfVersion Version { get; init; }
 
+    /// <summary>
+    /// Gets or sets the year of the last update.
+    /// </summary>
     [field: FieldOffset(1)]
     public byte LastUpdateYear { get; init; }
 
+    /// <summary>
+    /// Gets or sets the month of the last update. 
+    /// </summary>
     [field: FieldOffset(2)]
     public byte LastUpdateMonth { get; init; }
 
+    /// <summary>
+    /// Gets or sets the day of the last update.
+    /// </summary>
     [field: FieldOffset(3)]
     public byte LastUpdateDay { get; init; }
 
+    /// <summary>
+    /// Gets or sets the number of records in the dBASE file. 
+    /// </summary>
     [field: FieldOffset(4)]
     public uint RecordCount { get; init; }
 
+    /// <summary>
+    /// Gets or sets the length of the header structure.
+    /// </summary>
     [field: FieldOffset(8)]
     public ushort HeaderLength { get; init; }
 
+    /// <summary>
+    /// Gets or sets the length of each record.
+    /// </summary>
     [field: FieldOffset(10)]
     public ushort RecordLength { get; init; }
 
@@ -39,32 +63,20 @@ public readonly record struct DbfHeader
     [field: FieldOffset(15)]
     internal readonly byte EncryptionFlag;
 
+    /// <summary>
+    /// Gets or sets the DBF table flags.
+    /// </summary>
     [field: FieldOffset(28)]
     public DbfTableFlags TableFlags { get; init; }
 
+    /// <summary>
+    /// Gets or sets the language driver ID.
+    /// </summary>
     [field: FieldOffset(29)]
     public DbfLanguage Language { get; init; }
 
     [FieldOffset(30)]
     private readonly ushort _reserved2;
-
-    public DateOnly LastUpdate
-    {
-        get
-        {
-            var year = 1900 + LastUpdateYear;
-            var month = int.Clamp(LastUpdateMonth, 1, 12);
-            var day = int.Clamp(LastUpdateDay, 1, DateTime.DaysInMonth(year, month));
-            return new(year, month, day);
-        }
-
-        init
-        {
-            LastUpdateYear = (byte)(value.Year - 1900);
-            LastUpdateMonth = (byte)value.Month;
-            LastUpdateDay = (byte)value.Day;
-        }
-    }
 
     [InlineArray(16)]
     [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "InlineArray")]
