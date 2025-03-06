@@ -25,7 +25,16 @@ public abstract class DBaseTest<T>
     public Task VerifyHeader()
     {
         using var dbf = Dbf.Open(DbfPath);
-        return Verifier.Verify(target: dbf.Header);
+        return Verifier.Verify(target: new
+        {
+            dbf.Version,
+            dbf.Language,
+            LastUpdate = dbf.LastUpdate.ToString("yyyy-MM-dd"),
+            dbf.HeaderLength,
+            dbf.RecordLength,
+            dbf.RecordCount,
+            Descriptors = dbf.Descriptors.Select(d => $"| {d.Name,-10} | {(char)d.Type} | {d.Length,3} | {d.Decimal,2} |"),
+        });
     }
 
     [Fact]
@@ -58,8 +67,8 @@ public abstract class DBaseTest<T>
                 new MemoryStream(),
                 old.Descriptors,
                 old.Memo is not null ? new MemoryStream() : null,
-                old.Header.Version,
-                old.Header.Language);
+                old.Version,
+                old.Language);
 
             foreach (var record in old.EnumerateRecords())
                 dbf.Add(record);
@@ -82,8 +91,8 @@ public abstract class DBaseTest<T>
                 new MemoryStream(),
                 old.Descriptors,
                 old.Memo is not null ? new MemoryStream() : null,
-                old.Header.Version,
-                old.Header.Language);
+                old.Version,
+                old.Language);
 
             foreach (var record in old.EnumerateRecords<T>())
                 dbf.Add(record);

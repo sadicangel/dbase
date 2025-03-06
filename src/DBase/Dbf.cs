@@ -21,9 +21,14 @@ public sealed class Dbf : IDisposable
     private bool _dirty;
 
     /// <summary>
-    /// Gets the field descriptors that define the record structure.
+    /// Gets the version of the dBASE database file.
     /// </summary>
-    public ImmutableArray<DbfFieldDescriptor> Descriptors { get; }
+    public DbfVersion Version => _header.Version;
+
+    /// <summary>
+    /// Gets the language of the dBASE database file.
+    /// </summary>
+    public DbfLanguage Language => _header.Language;
 
     /// <summary>
     /// Gets the encoding used to read and write text.
@@ -34,11 +39,6 @@ public sealed class Dbf : IDisposable
     /// Gets the decimal separator used to read and write numeric values.
     /// </summary>
     public char DecimalSeparator { get; }
-
-    /// <summary>
-    /// Gets the memo file associated with this database file.
-    /// </summary>
-    public Memo? Memo { get; }
 
     /// <summary>
     /// Gets or sets the date of the last update to the database.
@@ -55,9 +55,19 @@ public sealed class Dbf : IDisposable
     }
 
     /// <summary>
+    /// Gets the length of the header in bytes.
+    /// </summary>
+    public int HeaderLength => _header.HeaderLength;
+
+    /// <summary>
+    /// Gets the length of each record in bytes.
+    /// </summary>
+    public int RecordLength => _header.RecordLength;
+
+    /// <summary>
     /// Gets the number of records in the database.
     /// </summary>
-    public int Count
+    public int RecordCount
     {
         get => (int)_header.RecordCount;
         private set
@@ -76,6 +86,16 @@ public sealed class Dbf : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Gets the field descriptors that define the record structure.
+    /// </summary>
+    public ImmutableArray<DbfFieldDescriptor> Descriptors { get; }
+
+    /// <summary>
+    /// Gets the memo file associated with this database file.
+    /// </summary>
+    public Memo? Memo { get; }
 
     /// <summary>
     /// Gets or sets the record at the specified <paramref name="index"/>.
@@ -307,7 +327,7 @@ public sealed class Dbf : IDisposable
 
         record = default;
 
-        if (recordIndex >= Count)
+        if (recordIndex >= RecordCount)
         {
             return false;
         }
@@ -335,7 +355,7 @@ public sealed class Dbf : IDisposable
 
         record = default;
 
-        if (recordIndex >= Count)
+        if (recordIndex >= RecordCount)
         {
             return false;
         }
@@ -393,7 +413,7 @@ public sealed class Dbf : IDisposable
             return;
         }
 
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
 
         SetStreamPositionForRecord(index);
 
@@ -407,12 +427,12 @@ public sealed class Dbf : IDisposable
             _dbf.Write(buffer.Span);
         }
 
-        Count = index + records.Length;
+        RecordCount = index + records.Length;
     }
 
     internal void WriteRecord(int index, DbfRecord record)
     {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
         ArgumentOutOfRangeException.ThrowIfNotEqual(record.Count, Descriptors.Length);
 
         SetStreamPositionForRecord(index);
@@ -424,12 +444,12 @@ public sealed class Dbf : IDisposable
         DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
         _dbf.Write(buffer.Span);
 
-        Count = Math.Max(Count, index + 1);
+        RecordCount = Math.Max(RecordCount, index + 1);
     }
 
     internal void WriteRecord<T>(int index, T record, DbfRecordStatus status)
     {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, Count);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
 
         SetStreamPositionForRecord(index);
 
@@ -442,7 +462,7 @@ public sealed class Dbf : IDisposable
         serializer(buffer.Span, record, status, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
         _dbf.Write(buffer.Span);
 
-        Count = Math.Max(Count, index + 1);
+        RecordCount = Math.Max(RecordCount, index + 1);
     }
 
     /// <summary>
@@ -450,7 +470,7 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="record">The record to add.</param>
     public void Add(DbfRecord record) =>
-        WriteRecord(Count, record);
+        WriteRecord(RecordCount, record);
 
     /// <summary>
     /// Adds a new record to the database.
@@ -459,5 +479,5 @@ public sealed class Dbf : IDisposable
     /// <param name="record">The record to add.</param>
     /// <param name="status">The status of the record.</param>
     public void Add<T>(T record, DbfRecordStatus status = DbfRecordStatus.Valid) =>
-        WriteRecord(Count, record, status);
+        WriteRecord(RecordCount, record, status);
 }
