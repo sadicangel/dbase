@@ -104,7 +104,7 @@ public sealed class Dbf : IDisposable
     /// <returns>
     /// The <see cref="DbfRecord"/> at the specified index.
     /// </returns>
-    public DbfRecord this[int index] { get => ReadRecord(index); }
+    public DbfRecord this[int index] => GetRecord(index);
 
     private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo)
     {
@@ -318,9 +318,6 @@ public sealed class Dbf : IDisposable
     internal long SetStreamPositionForField(int recordIndex, int fieldIndex) =>
         _dbf.Position = _header.HeaderLength + recordIndex * _header.RecordLength + Descriptors[fieldIndex].Offset;
 
-    internal DbfRecord ReadRecord(int recordIndex) =>
-        ReadRecord(recordIndex, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(recordIndex));
-
     internal bool ReadRecord(int recordIndex, out DbfRecord record)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
@@ -378,6 +375,23 @@ public sealed class Dbf : IDisposable
 
         return true;
     }
+
+    /// <summary>
+    /// Gets the record at the specified <paramref name="index"/>.
+    /// </summary>
+    /// <param name="index">The zero-based index of the record to get.</param>
+    /// <returns>The <see cref="DbfRecord"/> at the specified index.</returns>
+    public DbfRecord GetRecord(int index) =>
+        ReadRecord(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
+
+    /// <summary>
+    /// Gets the record at the specified <paramref name="index"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the record.</typeparam>
+    /// <param name="index">The zero-based index of the record to get.</param>
+    /// <returns></returns>
+    public T GetRecord<T>(int index) =>
+        ReadRecord<T>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
     /// Enumerates all records in the database.
