@@ -52,7 +52,7 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     /// Returns a string representation of the field name.
     /// </summary>
     /// <returns>A <see cref="string"/> that represents the field name.</returns>
-    public override readonly string ToString()
+    public readonly override string ToString()
     {
         ReadOnlySpan<byte> span = this;
         var length = span.IndexOf((byte)0);
@@ -64,10 +64,10 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     public readonly bool Equals(DbfFieldName other) => ((ReadOnlySpan<byte>)this).SequenceEqual(other);
 
     /// <inheritdoc />
-    public override readonly bool Equals(object? obj) => obj is DbfFieldName name && Equals(name);
+    public readonly override bool Equals(object? obj) => obj is DbfFieldName name && Equals(name);
 
     /// <inheritdoc />
-    public override readonly int GetHashCode()
+    public readonly override int GetHashCode()
     {
         var hash = new HashCode();
         foreach (var @byte in this)

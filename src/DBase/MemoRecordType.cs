@@ -1,9 +1,9 @@
 ﻿namespace DBase;
 
 /// <summary>
-/// Represents the type of a memo record.
+/// Represents the type of memo record.
 /// </summary>
-public enum MemoRecordType : int
+public enum MemoRecordType
 {
     /// <summary>
     /// Used for images, OLE objects (FoxPro)

@@ -1,8 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Collections;
-using System.Collections.Immutable;
 using DBase.Interop;
-using DotNext;
 using DotNext.Buffers;
 
 namespace DBase;
@@ -17,7 +15,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private static readonly byte[] s_recordTerminatorV3 = [0x1A, 0x1A];
 
     private delegate bool GetDelegate(ref int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer);
+
     private delegate void SetDelegate(int index, MemoRecordType type, ReadOnlySpan<byte> data);
+
     private delegate int LenDelegate(ReadOnlySpan<byte> data);
 
     private readonly Stream _memo;
@@ -124,11 +124,12 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             case DbfVersion.DBase8B:
                 {
                     stream.Position = 0;
-                    stream.Write(new DbtHeader
-                    {
-                        NextIndex = nextIndex,
-                        BlockLength = blockLength
-                    });
+                    stream.Write(
+                        new DbtHeader
+                        {
+                            NextIndex = nextIndex,
+                            BlockLength = blockLength
+                        });
                 }
                 break;
 
@@ -138,11 +139,12 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             case DbfVersion.FoxPro2WithMemo:
                 {
                     stream.Position = 0;
-                    stream.Write(new FptHeader
-                    {
-                        NextIndex = nextIndex,
-                        BlockLength = blockLength
-                    });
+                    stream.Write(
+                        new FptHeader
+                        {
+                            NextIndex = nextIndex,
+                            BlockLength = blockLength
+                        });
                 }
                 break;
 
@@ -170,6 +172,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             _dirty = false;
             WriteHeaderInfo(_memo, _version, NextIndex, BlockLength);
         }
+
         _memo.Flush();
     }
 
@@ -392,6 +395,8 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
             yield return record;
         }
 
+        yield break;
+
         bool Get(ref int index, out MemoRecord record)
         {
             var writer = new BufferWriterSlim<byte>(BlockLength);
@@ -402,6 +407,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
                     record = new MemoRecord(type, writer.WrittenSpan.ToArray());
                     return true;
                 }
+
                 record = default;
                 return false;
             }

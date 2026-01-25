@@ -8,7 +8,7 @@ namespace DBase;
 /// Represents a record of a dBASE file.
 /// </summary>
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-public readonly record struct DbfRecord : IEquatable<DbfRecord>, IReadOnlyList<DbfField>
+public readonly record struct DbfRecord : IReadOnlyList<DbfField>
 {
     internal DbfRecordStatus Status { get; init; }
     internal ImmutableArray<DbfField> Fields { get; init; }
