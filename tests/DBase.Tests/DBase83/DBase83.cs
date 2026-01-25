@@ -1,7 +1,12 @@
-﻿namespace DBase.Tests.DBase83;
+﻿using System.Diagnostics.CodeAnalysis;
 
+namespace DBase.Tests.DBase83;
+
+// ReSharper disable once UnusedMember.Global
 public class DBase83 : DBaseTest<DBase83Record>;
 
+[SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Required for serialization")]
+[SuppressMessage("ReSharper", "IdentifierTypo", Justification = "Required for serialization")]
 public record DBase83Record(
     double? ID,
     double? CATCOUNT,

@@ -1,6 +1,6 @@
 ﻿{
   Version: VisualFoxProWithVarchar,
-  Language: Windows_ANSI_1252,
+  Language: WindowsAnsi1252,
   LastUpdate: 1912-01-29,
   HeaderLength: 360,
   RecordLength: 252,

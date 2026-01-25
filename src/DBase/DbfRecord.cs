@@ -75,6 +75,10 @@ public readonly record struct DbfRecord : IReadOnlyList<DbfField>
         return hash.ToHashCode();
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Implicitly converts a DbfRecord instance to a read-only span of DbfField values, providing direct access to the
+    /// fields contained in the record.
+    /// </summary>
+    /// <param name="record">The DbfRecord instance to convert. Must not be null.</param>
     public static implicit operator ReadOnlySpan<DbfField>(DbfRecord record) => record.Fields.AsSpan();
 }

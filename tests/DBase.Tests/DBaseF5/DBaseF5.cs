@@ -1,6 +1,12 @@
-﻿namespace DBase.Tests.DBaseF5;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace DBase.Tests.DBaseF5;
+
+// ReSharper disable once UnusedMember.Global
 public class DBaseF5 : DBaseTest<DBaseF5Record>;
 
+[SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Required for serialization")]
+[SuppressMessage("ReSharper", "IdentifierTypo", Justification = "Required for serialization")]
 public record DBaseF5Record(
     double? NF,
     string SEXE,

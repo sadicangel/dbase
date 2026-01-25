@@ -1,7 +1,8 @@
 ﻿using DBase.Interop;
 
 namespace DBase.Tests;
-public class DbfMarshal_DateTime_Tests
+
+public class DbfMarshalDateTimeTests
 {
     public static TheoryData<DateTime> TestDates =>
     [
@@ -30,7 +31,7 @@ public class DbfMarshal_DateTime_Tests
     {
         var buffer = new byte[8];
 
-        DbfMarshal.WriteDateTime(buffer, default);
+        DbfMarshal.WriteDateTime(buffer, null);
         var decodedDate = DbfMarshal.ReadDateTime(buffer);
 
         Assert.Null(decodedDate);

@@ -68,6 +68,7 @@ public enum DbfVersion : byte
     /// <summary>
     /// dBASE IV SQL table with memo fields.
     /// </summary>
+    // ReSharper disable once InconsistentNaming
     DBaseCB = 0xCB,
 
     /// <summary>
@@ -78,5 +79,6 @@ public enum DbfVersion : byte
     /// <summary>
     /// FoxBASE.
     /// </summary>
+    // ReSharper disable once InconsistentNaming
     FoxBASE = 0xFB
 }

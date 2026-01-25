@@ -34,7 +34,7 @@ public enum DbfFieldType : byte
     Currency = (byte)'Y',
 
     /// <summary>
-    /// Numbers and a character to separate month, day, and year (stored internally as 8 digits in YYYYMMDD format).
+    /// Numbers and a character to separate month, day, and year (stored internally as 8 digits in yyyyMMdd format).
     /// </summary>
     Date = (byte)'D',
 

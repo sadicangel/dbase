@@ -1,7 +1,12 @@
-﻿namespace DBase.Tests.DBase03;
+﻿using System.Diagnostics.CodeAnalysis;
 
+namespace DBase.Tests.DBase03;
+
+// ReSharper disable once UnusedMember.Global
 public class DBase03 : DBaseTest<DBase03Record>;
 
+[SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Required for serialization")]
+[SuppressMessage("ReSharper", "IdentifierTypo", Justification = "Required for serialization")]
 public record DBase03Record(
     string Point_ID,
     string Type,

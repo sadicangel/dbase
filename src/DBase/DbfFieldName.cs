@@ -87,15 +87,15 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
             && ((ReadOnlySpan<byte>)this).SequenceEqual(buffer);
     }
 
-    /// <inheritdoc />
+    /// <summary>Determines whether two specified <see cref="DbfFieldName"/> values are equal.</summary>
     public static bool operator ==(DbfFieldName left, DbfFieldName right) => left.Equals(right);
 
-    /// <inheritdoc />
+    /// <summary>Determines whether two specified <see cref="DbfFieldName"/> values are not equal.</summary>
     public static bool operator !=(DbfFieldName left, DbfFieldName right) => !(left == right);
 
-    /// <inheritdoc />
+    /// <summary>Converts a <see cref="ReadOnlySpan{T}"/> of <see cref="byte"/> to a <see cref="DbfFieldName"/>.</summary>
     public static implicit operator DbfFieldName(ReadOnlySpan<byte> name) => new(name);
 
-    /// <inheritdoc />
+    /// <summary>Converts a <see cref="ReadOnlySpan{T}"/> of <see cref="char"/> to a <see cref="DbfFieldName"/>.</summary>
     public static implicit operator DbfFieldName(ReadOnlySpan<char> name) => new(name);
 }
