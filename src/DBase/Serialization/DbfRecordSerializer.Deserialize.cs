@@ -5,7 +5,7 @@ using System.Text;
 
 namespace DBase.Serialization;
 
-internal delegate T DeserializeRecord<T>(ReadOnlySpan<byte> source, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
+internal delegate T DeserializeRecord<out T>(ReadOnlySpan<byte> source, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
 
 internal static partial class DbfRecordSerializer
 {
@@ -31,50 +31,46 @@ internal static partial class DbfRecordSerializer
 
         var constructor = GetConstructor<T>([.. properties.Select(p => p.PropertyType)], out var isParameterless);
 
-        if (isParameterless)
+        if (!isParameterless)
         {
-            var setters = new Action<T, object?>[properties.Length];
-            for (var i = 0; i < properties.Length; ++i)
-            {
-                setters[i] = GetSetter<T>(properties[i]);
-            }
-
             return (source, descriptors, encoding, decimalSeparator, memo) =>
             {
-                var record = constructor([]);
-
                 _ = (DbfRecordStatus)source[0];
-                var offset = 1;
+
+                var args = new object?[descriptors.Length];
                 for (var i = 0; i < descriptors.Length; ++i)
                 {
                     ref readonly var descriptor = ref descriptors[i];
                     ref readonly var deserializer = ref deserializers[i];
-                    ref readonly var setter = ref setters[i];
-                    var value = deserializer(source.Slice(descriptor.Offset, descriptor.Length), descriptor, encoding, decimalSeparator, memo);
-                    setter(record, value);
-                    offset += descriptor.Length;
+                    args[i] = deserializer(source.Slice(descriptor.Offset, descriptor.Length), descriptor, encoding, decimalSeparator, memo);
                 }
-                return record;
+
+                return constructor(args);
             };
+        }
+
+        var setters = new Action<T, object?>[properties.Length];
+        for (var i = 0; i < properties.Length; ++i)
+        {
+            setters[i] = GetSetter<T>(properties[i]);
         }
 
         return (source, descriptors, encoding, decimalSeparator, memo) =>
         {
-            _ = (DbfRecordStatus)source[0];
-            var offset = 1;
+            var record = constructor([]);
 
-            var args = new object?[descriptors.Length];
+            _ = (DbfRecordStatus)source[0];
             for (var i = 0; i < descriptors.Length; ++i)
             {
                 ref readonly var descriptor = ref descriptors[i];
                 ref readonly var deserializer = ref deserializers[i];
-                args[i] = deserializer(source.Slice(descriptor.Offset, descriptor.Length), descriptor, encoding, decimalSeparator, memo);
-                offset += descriptor.Length;
+                ref readonly var setter = ref setters[i];
+                var value = deserializer(source.Slice(descriptor.Offset, descriptor.Length), descriptor, encoding, decimalSeparator, memo);
+                setter(record, value);
             }
 
-            return constructor(args);
+            return record;
         };
-
     }
 
     private static Action<T, object?> GetSetter<T>(PropertyInfo property)

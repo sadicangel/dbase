@@ -12,25 +12,19 @@ internal readonly record struct DbfFieldDescriptor02
 {
     internal const int Size = 16;
 
-    [field: FieldOffset(0)]
-    public readonly DbfFieldName Name { get; init; }
+    [field: FieldOffset(0)] public DbfFieldName Name { get; init; }
 
-    [FieldOffset(10)]
-    private readonly byte _zero; // '\0'
+    [FieldOffset(10)] private readonly byte _zero; // '\0'
 
-    [field: FieldOffset(11)]
-    public readonly DbfFieldType Type { get; init; }
+    [field: FieldOffset(11)] public DbfFieldType Type { get; init; }
 
-    [field: FieldOffset(12)]
-    public readonly byte Length { get; init; }
+    [field: FieldOffset(12)] public byte Length { get; init; }
 
-    [FieldOffset(13)]
-    private readonly short _address; // in memory address.
+    [FieldOffset(13)] private readonly short _address; // in memory address.
 
-    [field: FieldOffset(15)]
-    public readonly byte Decimal { get; init; }
+    [field: FieldOffset(15)] public byte Decimal { get; init; }
 
-    private unsafe string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
+    private string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
 
     public static implicit operator DbfFieldDescriptor(DbfFieldDescriptor02 descriptor) => new()
     {

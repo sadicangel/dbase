@@ -8,7 +8,7 @@ namespace DBase;
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor>
+public readonly record struct DbfFieldDescriptor
 {
     internal const int Size = 32;
 
@@ -16,51 +16,46 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     /// Gets the field name in ASCII.
     /// </summary>
     [field: FieldOffset(0)]
-    public readonly DbfFieldName Name { get; init; }
+    public DbfFieldName Name { get; init; }
 
-    [FieldOffset(10)]
-    private readonly byte _zero; // '\0'
+    [FieldOffset(10)] private readonly byte _zero; // '\0'
 
     /// <summary>
     /// Gets the type of the field.
     /// </summary>
     [field: FieldOffset(11)]
-    public readonly DbfFieldType Type { get; init; }
+    public DbfFieldType Type { get; init; }
 
     /// <summary>
     /// Gets the offset of the field in the record.
     /// </summary>
-    [FieldOffset(12)]
-    internal readonly int Offset;
+    [FieldOffset(12)] internal readonly int Offset;
 
     /// <summary>
     /// Gets or sets the length of the field in binary (maximum 254).
     /// </summary>
     [field: FieldOffset(16)]
-    public readonly byte Length { get; init; }
+    public byte Length { get; init; }
 
     /// <summary>
     /// Gets the field decimal count in binary.
     /// </summary>
     [field: FieldOffset(17)]
-    public readonly byte Decimal { get; init; }
+    public byte Decimal { get; init; }
 
     /// <summary>
     /// Gets the field flags describing special attributes of the field.
     /// </summary>
     [field: FieldOffset(18)]
-    public readonly DbfFieldFlags Flags { get; init; }
+    public DbfFieldFlags Flags { get; init; }
 
-    [FieldOffset(19)]
-    internal readonly int AutoIncrementNextValue;
+    [FieldOffset(19)] internal readonly int AutoIncrementNextValue;
 
-    [FieldOffset(23)]
-    internal readonly byte AutoIncrementStepValue;
+    [FieldOffset(23)] internal readonly byte AutoIncrementStepValue;
 
-    [FieldOffset(24)]
-    private readonly long _reserved8;
+    [FieldOffset(24)] private readonly long _reserved8;
 
-    private unsafe string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
+    private string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
 
     private static void ThrowIfInvalidName(DbfFieldName name)
     {
@@ -79,7 +74,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.AutoIncrement,
@@ -100,7 +95,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Binary,
@@ -119,7 +114,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Blob,
@@ -137,7 +132,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Character,
@@ -154,7 +149,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Currency,
@@ -171,7 +166,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Date,
@@ -188,7 +183,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.DateTime,
@@ -205,7 +200,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Double,
@@ -227,7 +222,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
         ArgumentOutOfRangeException.ThrowIfGreaterThan(length, 20);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(@decimal, length);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Float,
@@ -245,7 +240,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Int32,
@@ -262,7 +257,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Logical,
@@ -282,7 +277,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Memo,
@@ -301,7 +296,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.NullFlags,
@@ -323,7 +318,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
         ArgumentOutOfRangeException.ThrowIfGreaterThan(length, 20);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(@decimal, length);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Float,
@@ -344,7 +339,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Ole,
@@ -364,7 +359,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Picture,
@@ -381,7 +376,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Timestamp,
@@ -399,7 +394,7 @@ public readonly record struct DbfFieldDescriptor : IEquatable<DbfFieldDescriptor
     {
         ThrowIfInvalidName(name);
 
-        return new DbfFieldDescriptor()
+        return new DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.Variant,

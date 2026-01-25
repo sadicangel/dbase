@@ -1,8 +1,7 @@
-﻿
-namespace DBase;
+﻿namespace DBase;
 
 /// <summary>
-/// Represents the a memo record with an associated type.
+/// Represents a memo record with an associated type.
 /// </summary>
 /// <param name="Type">Gets the type of the memo record.</param>
 /// <param name="Data">Gets the data of the memo record.</param>

@@ -5,7 +5,7 @@ using System.Text;
 
 namespace DBase.Serialization;
 
-internal delegate void SerializeRecord<T>(Span<byte> target, T record, DbfRecordStatus status, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
+internal delegate void SerializeRecord<in T>(Span<byte> target, T record, DbfRecordStatus status, ReadOnlySpan<DbfFieldDescriptor> descriptors, Encoding encoding, char decimalSeparator, Memo? memo);
 
 internal static partial class DbfRecordSerializer
 {
@@ -38,17 +38,14 @@ internal static partial class DbfRecordSerializer
         return (target, record, status, descriptors, encoding, decimalSeparator, memo) =>
         {
             target[0] = (byte)status;
-            var offset = 1;
             for (var i = 0; i < descriptors.Length; ++i)
             {
                 ref readonly var descriptor = ref descriptors[i];
                 ref readonly var serializer = ref serializers[i];
                 ref readonly var getter = ref getters[i];
                 serializer(target.Slice(descriptor.Offset, descriptor.Length), getter(record), descriptor, encoding, decimalSeparator, memo);
-                offset += descriptor.Length;
             }
         };
-
     }
 
     private static Func<T, object?> GetGetter<T>(PropertyInfo property)
