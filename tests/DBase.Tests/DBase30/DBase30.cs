@@ -1,7 +1,12 @@
-﻿namespace DBase.Tests.DBase30;
+﻿using System.Diagnostics.CodeAnalysis;
 
+namespace DBase.Tests.DBase30;
+
+// ReSharper disable once UnusedMember.Global
 public class DBase30 : DBaseTest<DBase30Record>;
 
+[SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Required for serialization")]
+[SuppressMessage("ReSharper", "IdentifierTypo", Justification = "Required for serialization")]
 public record DBase30Record(
     string ACCESSNO,
     double? ACQVALUE,

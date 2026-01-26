@@ -1,6 +1,6 @@
 ﻿{
   Version: VisualFoxPro,
-  Language: Windows_ANSI_1252,
+  Language: WindowsAnsi1252,
   LastUpdate: 1906-09-09,
   HeaderLength: 4936,
   RecordLength: 3907,

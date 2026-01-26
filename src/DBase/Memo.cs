@@ -185,6 +185,8 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 
     private static int Len83(ReadOnlySpan<byte> record) => record.Length + 2;
     private static int Len8B(ReadOnlySpan<byte> record) => record.Length + 8;
+
+    // ReSharper disable once InconsistentNaming
     private static int LenFP(ReadOnlySpan<byte> record) => record.Length + 8;
 
     /// <summary>
@@ -267,6 +269,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         return true;
     }
 
+    // ReSharper disable once InconsistentNaming
     internal bool GetFP(ref int index, out MemoRecordType type, ref BufferWriterSlim<byte> writer)
     {
         type = default;
@@ -360,6 +363,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         NextIndex = index;
     }
 
+    // ReSharper disable once InconsistentNaming
     internal void SetFP(int index, MemoRecordType type, ReadOnlySpan<byte> data)
     {
         if (index != NextIndex)
@@ -390,19 +394,19 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;
-        while (Get(ref index, out var record))
+        while (GetOne(ref index, out var record))
         {
             yield return record;
         }
 
         yield break;
 
-        bool Get(ref int index, out MemoRecord record)
+        bool GetOne(ref int offset, out MemoRecord record)
         {
             var writer = new BufferWriterSlim<byte>(BlockLength);
             try
             {
-                if (_get(ref index, out var type, ref writer))
+                if (_get(ref offset, out var type, ref writer))
                 {
                     record = new MemoRecord(type, writer.WrittenSpan.ToArray());
                     return true;

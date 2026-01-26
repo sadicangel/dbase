@@ -8,7 +8,7 @@ public static class ModuleInitializer
     public static void Init()
     {
         VerifyDiffPlex.Initialize();
-        DerivePathInfo((sourceFile, projectDirectory, type, method) => new(
+        DerivePathInfo((_, projectDirectory, type, method) => new PathInfo(
             directory: Path.Combine(projectDirectory, type.Name),
             typeName: type.Name,
             methodName: method.Name));

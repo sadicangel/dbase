@@ -50,7 +50,7 @@ public sealed class Dbf : IDisposable
             var year = 1900 + _header.LastUpdateYear;
             var month = int.Clamp(_header.LastUpdateMonth, 1, 12);
             var day = int.Clamp(_header.LastUpdateDay, 1, DateTime.DaysInMonth(year, month));
-            return new(year, month, day);
+            return new DateOnly(year, month, day);
         }
     }
 
@@ -134,6 +134,7 @@ public sealed class Dbf : IDisposable
             var fptName = Path.ChangeExtension(fileName, "fpt");
             memo = File.Exists(fptName) ? new FileStream(fptName, FileMode.Open, FileAccess.ReadWrite) : null;
         }
+
         return Open(dbf, memo);
     }
 
@@ -161,21 +162,23 @@ public sealed class Dbf : IDisposable
         string fileName,
         ImmutableArray<DbfFieldDescriptor> descriptors,
         DbfVersion version = DbfVersion.DBase03,
-        DbfLanguage language = DbfLanguage.ANSI)
+        DbfLanguage language = DbfLanguage.Ansi)
     {
         var dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
         var memo = default(FileStream);
-        if (descriptors.GetTableFlags().HasFlag(DbfTableFlags.HasMemoField))
+        if (!descriptors.GetTableFlags().HasFlag(DbfTableFlags.HasMemoField))
         {
-            if (version.IsFoxPro())
-            {
-                memo = new FileStream(Path.ChangeExtension(fileName, "fpt"), FileMode.CreateNew, FileAccess.ReadWrite);
-            }
-            else
-            {
-                memo = new FileStream(Path.ChangeExtension(fileName, "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
-            }
+            return Create(dbf, descriptors, memo, version, language);
         }
+
+        var extension = version.IsFoxPro() ? "fpt" : "dbt";
+        memo = new FileStream(
+            Path.ChangeExtension(
+                fileName,
+                extension),
+            FileMode.CreateNew,
+            FileAccess.ReadWrite);
+
         return Create(dbf, descriptors, memo, version, language);
     }
 
@@ -184,7 +187,7 @@ public sealed class Dbf : IDisposable
         ImmutableArray<DbfFieldDescriptor> descriptors,
         Stream? memo = null,
         DbfVersion version = DbfVersion.DBase03,
-        DbfLanguage language = DbfLanguage.ANSI)
+        DbfLanguage language = DbfLanguage.Ansi)
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
@@ -232,6 +235,7 @@ public sealed class Dbf : IDisposable
             _dirty = false;
             WriteHeader(_dbf, in _header, Descriptors);
         }
+
         Memo?.Flush();
         _dbf.Flush();
     }
@@ -293,6 +297,7 @@ public sealed class Dbf : IDisposable
             {
                 dbf.Write((DbfFieldDescriptor02)descriptor);
             }
+
             dbf.WriteByte(0x0D);
             if (dbf.Position is not DbfHeader02.HeaderLengthInDisk)
             {
@@ -308,6 +313,7 @@ public sealed class Dbf : IDisposable
             {
                 dbf.Write(descriptor);
             }
+
             dbf.WriteByte(0x0D);
         }
     }
@@ -369,9 +375,7 @@ public sealed class Dbf : IDisposable
             return false;
         }
 
-        var deserializer = DbfRecordSerializer.GetDeserializer<T>(Descriptors.AsSpan());
-
-        record = deserializer(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+        record = DbfRecordSerializer.Deserialize<T>(buffer.Span, Descriptors, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
 
         return true;
     }
@@ -461,19 +465,17 @@ public sealed class Dbf : IDisposable
         RecordCount = Math.Max(RecordCount, index + 1);
     }
 
-    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status)
+    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status = DbfRecordStatus.Valid)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
 
         SetStreamPositionForRecord(index);
 
-        var serializer = DbfRecordSerializer.GetSerializer<T>(Descriptors.AsSpan());
-
         using var buffer = _header.RecordLength < StackallocThreshold
             ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
             : new SpanOwner<byte>(_header.RecordLength);
 
-        serializer(buffer.Span, record, status, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+        DbfRecordSerializer.Serialize(buffer.Span, record, status, Descriptors, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
         _dbf.Write(buffer.Span);
 
         RecordCount = Math.Max(RecordCount, index + 1);

@@ -4,11 +4,11 @@ using System.Diagnostics.CodeAnalysis;
 namespace DBase;
 
 /// <summary>
-/// Represents a field of a <see cref="DbfRecord" />.
+/// Represents a field of a <see cref="IEquatable{T}" />.
 /// </summary>
-/// <seealso cref="IEquatable{T}" />
+/// <seealso cref="DbfFieldDescriptor" />
 /// <remarks>
-/// The field is defined by a <see cref="DbfFieldDescriptor" />.
+/// The field is defined by a <see cref="DbfRecord" />.
 /// </remarks>
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 public readonly struct DbfField : IEquatable<DbfField>
@@ -33,7 +33,7 @@ public readonly struct DbfField : IEquatable<DbfField>
     /// </summary>
     /// <typeparam name="T">Type to check.</typeparam>
     /// <returns>
-    ///   <see langword="true" /> if this instance is of type <typeparamref name="T"/>; otherwise, <see langword="false" />.
+    /// <see langword="true" /> if this instance is of type <typeparamref name="T"/>; otherwise, <see langword="false" />.
     /// </returns>
     [MemberNotNullWhen(true, nameof(Value))]
     public bool IsType<T>() => _value is not null && typeof(T) == _value.GetType();
@@ -45,18 +45,14 @@ public readonly struct DbfField : IEquatable<DbfField>
     /// <returns>The value of the field as type <typeparamref name="T"/> or <see langword="null" /> if the field is <see langword="null" />.</returns>
     public T? GetValue<T>() => _value is T value ? value : default;
 
-
     /// <summary>
     /// Gets the string representation of the field.
     /// </summary>
-    /// <returns>The string representation of the field.</returns>
     public override string ToString() => ToString(null);
 
     /// <summary>
     /// Gets the string representation of the field using the specified format provider.
     /// </summary>
-    /// <param name="provider">The format provider to use.</param>
-    /// <returns>The string representation of the field.</returns>
     public string ToString(IFormatProvider? provider) => string.Format(provider, "{0}", _value);
 
     private string GetDebuggerDisplay() => ToString();
@@ -70,88 +66,93 @@ public readonly struct DbfField : IEquatable<DbfField>
     /// <inheritdoc/>
     public override int GetHashCode() => HashCode.Combine(_value);
 
-    /// <inheritdoc/>
+    /// <summary>Determines whether two specified <see cref="DbfField"/> values are equal.</summary>
     public static bool operator ==(DbfField left, DbfField right) => left.Equals(right);
 
-    /// <inheritdoc/>
+    /// <summary>Determines whether two specified <see cref="DbfField"/> values are not equal.</summary>
     public static bool operator !=(DbfField left, DbfField right) => !(left == right);
 
-
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="bool"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(bool boolean) => new(boolean);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a nullable <see cref="bool"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(bool? boolean) => new(boolean);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a nullable <see cref="bool"/>.</summary>
     public static explicit operator bool?(DbfField field) => (bool?)field._value;
 
-    /// <inheritdoc/>
-    public static explicit operator bool(DbfField field) => field._value is bool value ? value : throw new InvalidCastException();
+    /// <summary>Converts a <see cref="DbfField"/> to a <see cref="bool"/>.</summary>
+    public static explicit operator bool(DbfField field) =>
+        field._value is bool value ? value : throw new InvalidCastException();
 
-    /// <inheritdoc/>
+    /// <summary>Converts an <see cref="int"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(int number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a nullable <see cref="int"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(int? number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a nullable <see cref="int"/>.</summary>
     public static explicit operator int?(DbfField field) => (int?)field._value;
 
-    /// <inheritdoc/>
-    public static explicit operator int(DbfField field) => field._value is int value ? value : throw new InvalidCastException();
+    /// <summary>Converts a <see cref="DbfField"/> to an <see cref="int"/>.</summary>
+    public static explicit operator int(DbfField field) =>
+        field._value is int value ? value : throw new InvalidCastException();
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="long"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(long number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a nullable <see cref="long"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(long? number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a nullable <see cref="long"/>.</summary>
     public static explicit operator long?(DbfField field) => (long?)field._value;
 
-    /// <inheritdoc/>
-    public static explicit operator long(DbfField field) => field._value is long value ? value : throw new InvalidCastException();
+    /// <summary>Converts a <see cref="DbfField"/> to a <see cref="long"/>.</summary>
+    public static explicit operator long(DbfField field) =>
+        field._value is long value ? value : throw new InvalidCastException();
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="double"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(double number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a nullable <see cref="double"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(double? number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a nullable <see cref="double"/>.</summary>
     public static explicit operator double?(DbfField field) => (double?)field._value;
 
-    /// <inheritdoc/>
-    public static explicit operator double(DbfField field) => field._value is double value ? value : throw new InvalidCastException();
+    /// <summary>Converts a <see cref="DbfField"/> to a <see cref="double"/>.</summary>
+    public static explicit operator double(DbfField field) =>
+        field._value is double value ? value : throw new InvalidCastException();
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="decimal"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(decimal number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a nullable <see cref="decimal"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(decimal? number) => new(number);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a nullable <see cref="decimal"/>.</summary>
     public static explicit operator decimal?(DbfField field) => (decimal?)field._value;
 
-    /// <inheritdoc/>
-    public static explicit operator decimal(DbfField field) => field._value is decimal value ? value : throw new InvalidCastException();
+    /// <summary>Converts a <see cref="DbfField"/> to a <see cref="decimal"/>.</summary>
+    public static explicit operator decimal(DbfField field) =>
+        field._value is decimal value ? value : throw new InvalidCastException();
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DateTime"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(DateTime dateTime) => new(dateTime);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a nullable <see cref="DateTime"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(DateTime? dateTime) => new(dateTime);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a nullable <see cref="DateTime"/>.</summary>
     public static explicit operator DateTime?(DbfField field) => (DateTime?)field._value;
 
-    /// <inheritdoc/>
-    public static explicit operator DateTime(DbfField field) => field._value is DateTime value ? value : throw new InvalidCastException();
+    /// <summary>Converts a <see cref="DbfField"/> to a <see cref="DateTime"/>.</summary>
+    public static explicit operator DateTime(DbfField field) =>
+        field._value is DateTime value ? value : throw new InvalidCastException();
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="string"/> to a <see cref="DbfField"/>.</summary>
     public static implicit operator DbfField(string? text) => new(text);
 
-    /// <inheritdoc/>
+    /// <summary>Converts a <see cref="DbfField"/> to a <see cref="string"/>.</summary>
     public static explicit operator string?(DbfField field) => (string?)field._value;
 }
