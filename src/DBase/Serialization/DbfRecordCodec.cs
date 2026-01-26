@@ -6,8 +6,7 @@ namespace DBase.Serialization;
 internal readonly record struct DbfRecordCodec<T>
 {
     private readonly ImmutableArray<DbfFieldDescriptor> _descriptors;
-    private readonly ImmutableArray<DeserializeField> _deserializers;
-    private readonly ImmutableArray<SerializeField> _serializers;
+    private readonly ImmutableArray<DbfFieldCodec> _fieldCodecs;
 
     public DbfRecordCodec(ImmutableArray<DbfFieldDescriptor> descriptors)
     {
@@ -19,17 +18,14 @@ internal readonly record struct DbfRecordCodec<T>
             throw new InvalidOperationException($"The number of properties does not match the number of field descriptors. Expected: {descriptors.Length}, Actual: {properties.Length}");
         }
 
-        var deserializers = ImmutableArray.CreateBuilder<DeserializeField>(descriptors.Length);
-        var serializers = ImmutableArray.CreateBuilder<SerializeField>(descriptors.Length);
+        var fieldCodecs = ImmutableArray.CreateBuilder<DbfFieldCodec>(descriptors.Length);
         foreach (var (property, descriptor) in properties.Zip(descriptors))
         {
-            deserializers.Add(DbfFieldSerializer.GetDeserializer(property.PropertyType, in descriptor));
-            serializers.Add(DbfFieldSerializer.GetSerializer(property.PropertyType, in descriptor));
+            fieldCodecs.Add(new DbfFieldCodec(property, descriptor));
         }
 
         _descriptors = descriptors;
-        _deserializers = deserializers.MoveToImmutable();
-        _serializers = serializers.ToImmutable();
+        _fieldCodecs = fieldCodecs.MoveToImmutable();
     }
 
     public object?[] Read(ReadOnlySpan<byte> source, Encoding encoding, char decimalSeparator, Memo? memo)
@@ -38,9 +34,9 @@ internal readonly record struct DbfRecordCodec<T>
 
         var values = new object?[_descriptors.Length];
         var i = 0;
-        foreach (var (descriptor, deserializer) in _descriptors.Zip(_deserializers))
+        foreach (var (descriptor, reader) in _descriptors.Zip(_fieldCodecs))
         {
-            values[i++] = deserializer(source.Slice(descriptor.Offset, descriptor.Length), encoding, decimalSeparator, memo);
+            values[i++] = reader.Read(source.Slice(descriptor.Offset, descriptor.Length), encoding, decimalSeparator, memo);
         }
 
         return values;
@@ -49,9 +45,9 @@ internal readonly record struct DbfRecordCodec<T>
     public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, Encoding encoding, char decimalSeparator, Memo? memo)
     {
         target[0] = (byte)status;
-        foreach (var (descriptor, serializer, value) in _descriptors.Zip(_serializers, values))
+        foreach (var (descriptor, writer, value) in _descriptors.Zip(_fieldCodecs, values))
         {
-            serializer(target.Slice(descriptor.Offset, descriptor.Length), value, encoding, decimalSeparator, memo);
+            writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, encoding, decimalSeparator, memo);
         }
     }
 }
