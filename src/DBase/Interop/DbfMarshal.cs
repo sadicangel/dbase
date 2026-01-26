@@ -110,7 +110,7 @@ internal static class DbfMarshal
                 WriteDouble(target, field.GetValue<double>());
                 break;
             case DbfFieldType.Float:
-                WriteNumericFloat(target, field.GetValue<double?>(), descriptor, encoding, decimalSeparator);
+                WriteNumericFloat(target, field.GetValue<double?>(), descriptor.Decimal, encoding, decimalSeparator);
                 break;
             case DbfFieldType.Int32:
                 WriteInt32(target, field.GetValue<int>());
@@ -128,7 +128,7 @@ internal static class DbfMarshal
                 WriteNumericInteger(target, field.GetValue<long?>(), encoding);
                 break;
             case DbfFieldType.Numeric:
-                WriteNumericFloat(target, field.GetValue<double?>(), descriptor, encoding, decimalSeparator);
+                WriteNumericFloat(target, field.GetValue<double?>(), descriptor.Decimal, encoding, decimalSeparator);
                 break;
             case DbfFieldType.Ole:
                 WriteMemoOle(target, field.GetValue<string>(), encoding, memo);
@@ -373,7 +373,7 @@ internal static class DbfMarshal
         return double.Parse(@double, NumberStyles.Number, CultureInfo.InvariantCulture);
     }
 
-    public static void WriteNumericFloat(Span<byte> target, double? value, in DbfFieldDescriptor descriptor, Encoding encoding, char decimalSeparator)
+    public static void WriteNumericFloat(Span<byte> target, double? value, byte @decimal, Encoding encoding, char decimalSeparator)
     {
         target.Fill((byte)' ');
         if (value is null)
@@ -382,13 +382,13 @@ internal static class DbfMarshal
         var f64 = value.Value;
 
         Span<char> format = ['F', '\0', '\0'];
-        if (!descriptor.Decimal.TryFormat(format[1..], out var charsWritten))
+        if (!@decimal.TryFormat(format[1..], out var charsWritten))
             throw new InvalidOperationException("Failed to create decimal format");
         format = format[..(1 + charsWritten)];
 
         Span<char> chars = stackalloc char[20];
         if (!f64.TryFormat(chars, out charsWritten, format, CultureInfo.InvariantCulture))
-            throw new InvalidOperationException($"Failed to format value '{f64}' for field type '{descriptor.Type}'");
+            throw new InvalidOperationException($"Failed to format value '{f64}' for numeric field");
 
         if (decimalSeparator is not '.' && chars.IndexOf(decimalSeparator) is var idx and >= 0)
             chars[idx] = decimalSeparator;

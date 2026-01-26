@@ -4,7 +4,7 @@ using DBase.Interop;
 
 namespace DBase.Serialization;
 
-internal delegate object? DeserializeField(ReadOnlySpan<byte> source, DbfFieldDescriptor descriptor, Encoding encoding, char decimalSeparator, Memo? memo);
+internal delegate object? DeserializeField(ReadOnlySpan<byte> source, Encoding encoding, char decimalSeparator, Memo? memo);
 
 internal static partial class DbfFieldSerializer
 {
@@ -45,13 +45,13 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(long))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadAutoIncrement(source);
         }
 
         if (key.PropertyType == typeof(ulong))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 unchecked((ulong)DbfMarshal.ReadAutoIncrement(source));
         }
 
@@ -67,19 +67,19 @@ internal static partial class DbfFieldSerializer
 
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoBinary(source, encoding, memo);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoBinary(source, encoding, memo).ToCharArray();
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoBinary(source, encoding, memo).AsMemory();
         }
 
@@ -90,19 +90,19 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoBlob(source, encoding, memo);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoBlob(source, encoding, memo).ToCharArray();
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoBlob(source, encoding, memo).AsMemory();
         }
 
@@ -113,19 +113,19 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadCharacter(source, encoding);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadCharacter(source, encoding).ToCharArray();
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadCharacter(source, encoding).AsMemory();
         }
 
@@ -136,7 +136,7 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(decimal))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadCurrency(source);
         }
 
@@ -147,37 +147,37 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(DateTime))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadDate(source, encoding) ?? default;
         }
 
         if (key.PropertyType == typeof(DateTime?))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadDate(source, encoding);
         }
 
         if (key.PropertyType == typeof(DateTimeOffset))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadDate(source, encoding) is { } dateTime ? new DateTimeOffset(dateTime) : default;
         }
 
         if (key.PropertyType == typeof(DateTimeOffset?))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadDate(source, encoding) is { } dateTime ? new DateTimeOffset(dateTime) : null;
         }
 
         if (key.PropertyType == typeof(DateOnly))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadDate(source, encoding) is { } dateTime ? DateOnly.FromDateTime(dateTime) : default;
         }
 
         if (key.PropertyType == typeof(DateOnly?))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadDate(source, encoding) is { } dateTime ? DateOnly.FromDateTime(dateTime) : null;
         }
 
@@ -188,37 +188,37 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(DateTime))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDateTime(source) ?? default;
         }
 
         if (key.PropertyType == typeof(DateTime?))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDateTime(source);
         }
 
         if (key.PropertyType == typeof(DateTimeOffset))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDateTime(source) is { } dateTime ? new DateTimeOffset(dateTime) : default;
         }
 
         if (key.PropertyType == typeof(DateTimeOffset?))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDateTime(source) is { } dateTime ? new DateTimeOffset(dateTime) : null;
         }
 
         if (key.PropertyType == typeof(DateOnly))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDateTime(source) is { } dateTime ? DateOnly.FromDateTime(dateTime) : default;
         }
 
         if (key.PropertyType == typeof(DateOnly?))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDateTime(source) is { } dateTime ? DateOnly.FromDateTime(dateTime) : null;
         }
 
@@ -229,7 +229,7 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(double))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadDouble(source);
         }
 
@@ -240,13 +240,13 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(int))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadInt32(source);
         }
 
         if (key.PropertyType == typeof(uint))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 unchecked((uint)DbfMarshal.ReadInt32(source));
         }
 
@@ -257,13 +257,13 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(bool))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadLogical(source, encoding) ?? false;
         }
 
         if (key.PropertyType == typeof(bool?))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadLogical(source, encoding);
         }
 
@@ -274,19 +274,19 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoString(source, encoding, memo);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoString(source, encoding, memo);
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoString(source, encoding, memo);
         }
 
@@ -297,7 +297,7 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, _, _, _) =>
+            return static (source, _, _, _) =>
                 DbfMarshal.ReadNullFlags(source);
         }
 
@@ -311,74 +311,74 @@ internal static partial class DbfFieldSerializer
         {
             if (key.PropertyType == typeof(int))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) is { } l ? (int)l : 0;
             }
 
             if (key.PropertyType == typeof(int?))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) is { } l ? (int)l : null;
             }
 
             if (key.PropertyType == typeof(uint))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) is { } l ? unchecked((uint)l) : 0U;
             }
 
             if (key.PropertyType == typeof(uint?))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) is { } l ? unchecked((uint)l) : null;
             }
 
             if (key.PropertyType == typeof(long))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) ?? 0L;
             }
 
             if (key.PropertyType == typeof(long?))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding);
             }
 
             if (key.PropertyType == typeof(ulong))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) is { } l ? unchecked((ulong)l) : 0UL;
             }
 
             if (key.PropertyType == typeof(ulong?))
             {
-                return static (source, _, encoding, _, _) =>
+                return static (source, encoding, _, _) =>
                     DbfMarshal.ReadNumericInteger(source, encoding) is { } l ? unchecked((ulong)l) : null;
             }
         }
 
         if (key.PropertyType == typeof(float))
         {
-            return static (source, _, encoding, decimalSeparator, _) =>
+            return static (source, encoding, decimalSeparator, _) =>
                 DbfMarshal.ReadNumericDouble(source, encoding, decimalSeparator) is { } d ? (float)d : 0f;
         }
 
         if (key.PropertyType == typeof(float?))
         {
-            return static (source, _, encoding, decimalSeparator, _) =>
+            return static (source, encoding, decimalSeparator, _) =>
                 DbfMarshal.ReadNumericDouble(source, encoding, decimalSeparator) is { } d ? (float)d : null;
         }
 
         if (key.PropertyType == typeof(double))
         {
-            return static (source, _, encoding, decimalSeparator, _) =>
+            return static (source, encoding, decimalSeparator, _) =>
                 DbfMarshal.ReadNumericDouble(source, encoding, decimalSeparator) ?? 0D;
         }
 
         if (key.PropertyType == typeof(double?))
         {
-            return static (source, _, encoding, decimalSeparator, _) =>
+            return static (source, encoding, decimalSeparator, _) =>
                 DbfMarshal.ReadNumericDouble(source, encoding, decimalSeparator);
         }
 
@@ -389,19 +389,19 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoOle(source, encoding, memo);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoOle(source, encoding, memo).ToCharArray();
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoOle(source, encoding, memo).AsMemory();
         }
 
@@ -412,19 +412,19 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoPicture(source, encoding, memo);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoPicture(source, encoding, memo).ToCharArray();
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, memo) =>
+            return static (source, encoding, _, memo) =>
                 DbfMarshal.ReadMemoPicture(source, encoding, memo).AsMemory();
         }
 
@@ -438,19 +438,19 @@ internal static partial class DbfFieldSerializer
     {
         if (key.PropertyType == typeof(string))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadVariant(source, encoding);
         }
 
         if (key.PropertyType == typeof(char[]))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadVariant(source, encoding);
         }
 
         if (key.PropertyType == typeof(ReadOnlyMemory<char>))
         {
-            return static (source, _, encoding, _, _) =>
+            return static (source, encoding, _, _) =>
                 DbfMarshal.ReadVariant(source, encoding);
         }
 

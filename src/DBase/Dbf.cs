@@ -375,9 +375,7 @@ public sealed class Dbf : IDisposable
             return false;
         }
 
-        var deserializer = DbfRecordSerializer.GetDeserializer<T>(Descriptors.AsSpan());
-
-        record = deserializer(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+        record = RecordSerializer.Deserialize<T>(buffer.Span, Descriptors, Encoding, DecimalSeparator, Memo);
 
         return true;
     }
@@ -467,19 +465,17 @@ public sealed class Dbf : IDisposable
         RecordCount = Math.Max(RecordCount, index + 1);
     }
 
-    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status)
+    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status = DbfRecordStatus.Valid)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
 
         SetStreamPositionForRecord(index);
 
-        var serializer = DbfRecordSerializer.GetSerializer<T>(Descriptors.AsSpan());
-
         using var buffer = _header.RecordLength < StackallocThreshold
             ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
             : new SpanOwner<byte>(_header.RecordLength);
 
-        serializer(buffer.Span, record, status, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
+        RecordSerializer.Serialize(buffer.Span, record, status, Descriptors, Encoding, DecimalSeparator, Memo);
         _dbf.Write(buffer.Span);
 
         RecordCount = Math.Max(RecordCount, index + 1);
