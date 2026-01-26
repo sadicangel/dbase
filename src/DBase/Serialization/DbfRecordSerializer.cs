@@ -4,7 +4,7 @@ using System.Text;
 
 namespace DBase.Serialization;
 
-internal static class RecordSerializer
+internal static class DbfRecordSerializer
 {
     private static readonly ConcurrentDictionary<Type, object> s_serializers = [];
 
