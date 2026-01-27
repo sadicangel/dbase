@@ -324,34 +324,6 @@ public sealed class Dbf : IDisposable
     internal long SetStreamPositionForField(int recordIndex, int fieldIndex) =>
         _dbf.Position = _header.HeaderLength + recordIndex * _header.RecordLength + Descriptors[fieldIndex].Offset;
 
-    internal bool ReadRecord(int recordIndex, out DbfRecord record)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
-
-        record = default;
-
-        if (recordIndex >= RecordCount)
-        {
-            return false;
-        }
-
-        SetStreamPositionForRecord(recordIndex);
-
-        using var buffer = _header.RecordLength < StackallocThreshold
-            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
-            : new SpanOwner<byte>(_header.RecordLength);
-
-        var bytesRead = _dbf.ReadAtLeast(buffer.Span, _header.RecordLength, throwOnEndOfStream: false);
-        if (bytesRead != _header.RecordLength)
-        {
-            return false;
-        }
-
-        record = DbfMarshal.ReadRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo);
-
-        return true;
-    }
-
     internal bool ReadRecord<T>(int recordIndex, [MaybeNullWhen(false)] out T record)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
@@ -375,7 +347,7 @@ public sealed class Dbf : IDisposable
             return false;
         }
 
-        record = DbfRecordSerializer.Deserialize<T>(buffer.Span, Descriptors, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
+        record = Descriptors.GetSerializer<T>().Deserialize(buffer.Span, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
 
         return true;
     }
@@ -385,8 +357,7 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="index">The zero-based index of the record to get.</param>
     /// <returns>The <see cref="DbfRecord"/> at the specified index.</returns>
-    public DbfRecord GetRecord(int index) =>
-        ReadRecord(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
+    public DbfRecord GetRecord(int index) => ReadRecord<DbfRecord>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
     /// Gets the record at the specified <paramref name="index"/>.
@@ -394,21 +365,13 @@ public sealed class Dbf : IDisposable
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <param name="index">The zero-based index of the record to get.</param>
     /// <returns></returns>
-    public T GetRecord<T>(int index) =>
-        ReadRecord<T>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
+    public T GetRecord<T>(int index) => ReadRecord<T>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
     /// Enumerates all records in the database.
     /// </summary>
     /// <returns>The sequence of records in the database.</returns>
-    public IEnumerable<DbfRecord> EnumerateRecords()
-    {
-        var index = 0;
-        while (ReadRecord(index++, out var record))
-        {
-            yield return record;
-        }
-    }
+    public IEnumerable<DbfRecord> EnumerateRecords() => EnumerateRecords<DbfRecord>();
 
     /// <summary>
     /// Enumerates all records in the database.
@@ -424,48 +387,7 @@ public sealed class Dbf : IDisposable
         }
     }
 
-    internal void WriteRecords(int index, params ReadOnlySpan<DbfRecord> records)
-    {
-        if (records.Length == 0)
-        {
-            return;
-        }
-
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
-
-        SetStreamPositionForRecord(index);
-
-        using var buffer = _header.RecordLength < StackallocThreshold
-            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
-            : new SpanOwner<byte>(_header.RecordLength);
-
-        foreach (var record in records)
-        {
-            DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
-            _dbf.Write(buffer.Span);
-        }
-
-        RecordCount = index + records.Length;
-    }
-
-    internal void WriteRecord(int index, DbfRecord record)
-    {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
-        ArgumentOutOfRangeException.ThrowIfNotEqual(record.Count, Descriptors.Length);
-
-        SetStreamPositionForRecord(index);
-
-        using var buffer = _header.RecordLength < StackallocThreshold
-            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
-            : new SpanOwner<byte>(_header.RecordLength);
-
-        DbfMarshal.WriteRecord(buffer.Span, Descriptors.AsSpan(), Encoding, DecimalSeparator, Memo, record);
-        _dbf.Write(buffer.Span);
-
-        RecordCount = Math.Max(RecordCount, index + 1);
-    }
-
-    internal void WriteRecord<T>(int index, T record, DbfRecordStatus status = DbfRecordStatus.Valid)
+    internal void WriteRecord<T>(int index, T record)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
 
@@ -475,7 +397,7 @@ public sealed class Dbf : IDisposable
             ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
             : new SpanOwner<byte>(_header.RecordLength);
 
-        DbfRecordSerializer.Serialize(buffer.Span, record, status, Descriptors, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
+        Descriptors.GetSerializer<T>().Serialize(buffer.Span, record, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
         _dbf.Write(buffer.Span);
 
         RecordCount = Math.Max(RecordCount, index + 1);
@@ -485,15 +407,12 @@ public sealed class Dbf : IDisposable
     /// Adds a new record to the database.
     /// </summary>
     /// <param name="record">The record to add.</param>
-    public void Add(DbfRecord record) =>
-        WriteRecord(RecordCount, record);
+    public void Add(DbfRecord record) => WriteRecord(RecordCount, record);
 
     /// <summary>
     /// Adds a new record to the database.
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <param name="record">The record to add.</param>
-    /// <param name="status">The status of the record.</param>
-    public void Add<T>(T record, DbfRecordStatus status = DbfRecordStatus.Valid) =>
-        WriteRecord(RecordCount, record, status);
+    public void Add<T>(T record) => WriteRecord(RecordCount, record);
 }

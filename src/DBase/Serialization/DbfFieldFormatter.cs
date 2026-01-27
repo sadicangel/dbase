@@ -1,825 +1,904 @@
-﻿using System.Reflection;
-using DBase.Interop;
+﻿using System.Buffers.Binary;
+using System.Globalization;
+using System.Text;
+using DotNext.Buffers;
+using DotNext.Buffers.Text;
+using DotNext.Text;
 
 namespace DBase.Serialization;
 
-internal readonly struct DbfFieldFormatter(PropertyInfo property, DbfFieldDescriptor descriptor)
+internal delegate object? ReadValue(ReadOnlySpan<byte> source, DbfSerializationContext context);
+
+internal delegate void WriteValue(Span<byte> target, object? value, DbfSerializationContext context);
+
+internal readonly struct DbfFieldFormatter(ReadValue read, WriteValue write)
 {
-    private delegate object? ReadValue(ReadOnlySpan<byte> source, DbfSerializationContext context);
+    public object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) => read(source, context);
 
-    private delegate void WriteValue(Span<byte> target, object? value, DbfSerializationContext context);
+    public void Write(Span<byte> target, object? value, DbfSerializationContext context) => write(target, value, context);
 
-    private readonly ReadValue _read = CreateReader(property, descriptor);
-    private readonly WriteValue _write = CreateWriter(property, descriptor);
-
-    public object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) => _read(source, context);
-
-    public void Write(Span<byte> target, object? value, DbfSerializationContext context) => _write(target, value, context);
-
-    private static ReadValue CreateReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+    public static DbfFieldFormatter Create(Type propertyType, DbfFieldDescriptor descriptor)
     {
         return descriptor.Type switch
         {
-            DbfFieldType.AutoIncrement => GetAutoIncrementReader(property, descriptor),
-            DbfFieldType.Binary => GetBinaryReader(property, descriptor),
-            DbfFieldType.Blob => GetBlobReader(property, descriptor),
-            DbfFieldType.Character => GetCharacterReader(property, descriptor),
-            DbfFieldType.Currency => GetCurrencyReader(property, descriptor),
-            DbfFieldType.Date => GetDateReader(property, descriptor),
-            DbfFieldType.DateTime => GetDateTimeReader(property, descriptor),
-            DbfFieldType.Double => GetDoubleReader(property, descriptor),
-            DbfFieldType.Float => GetNumericReader(property, descriptor),
-            DbfFieldType.Int32 => GetInt32Reader(property, descriptor),
-            DbfFieldType.Logical => GetLogicalReader(property, descriptor),
-            DbfFieldType.Memo => GetMemoReader(property, descriptor),
-            DbfFieldType.NullFlags => GetNullFlagsReader(property, descriptor),
-            DbfFieldType.Numeric => GetNumericReader(property, descriptor),
-            DbfFieldType.Ole => GetOleReader(property, descriptor),
-            DbfFieldType.Picture => GetPictureReader(property, descriptor),
-            DbfFieldType.Timestamp => GetTimestampReader(property, descriptor),
-            DbfFieldType.Variant => GetVariantReader(property, descriptor),
-            _ => throw new NotImplementedException(),
+            DbfFieldType.AutoIncrement => DbfFieldAutoIncrementFormatter.Create(propertyType),
+            DbfFieldType.Binary when descriptor.Length == 8 => DbfFieldDoubleFormatter.Create(propertyType),
+            DbfFieldType.Binary => DbfFieldMemoFormatter.Create(propertyType, MemoRecordType.Object),
+            DbfFieldType.Blob => DbfFieldMemoFormatter.Create(propertyType, MemoRecordType.Object),
+            DbfFieldType.Character => DbfFieldCharacterFormatter.Create(propertyType),
+            DbfFieldType.Currency => DbfFieldCurrencyFormatter.Create(propertyType),
+            DbfFieldType.Date => DbfFieldDateFormatter.Create(propertyType),
+            DbfFieldType.DateTime => DbfFieldDateTimeFormatter.Create(propertyType),
+            DbfFieldType.Double => DbfFieldDoubleFormatter.Create(propertyType),
+            DbfFieldType.Float => DbfFieldNumericFormatter.Create(propertyType, descriptor.Decimal),
+            DbfFieldType.Int32 => DbfFieldInt32Formatter.Create(propertyType),
+            DbfFieldType.Logical => DbfFieldLogicalFormatter.Create(propertyType),
+            DbfFieldType.Memo => DbfFieldMemoFormatter.Create(propertyType, MemoRecordType.Memo),
+            DbfFieldType.NullFlags => DbfFieldNullFlagsFormatter.Create(propertyType),
+            DbfFieldType.Numeric => DbfFieldNumericFormatter.Create(propertyType, descriptor.Decimal),
+            DbfFieldType.Ole => DbfFieldMemoFormatter.Create(propertyType, MemoRecordType.Object),
+            DbfFieldType.Picture => DbfFieldMemoFormatter.Create(propertyType, MemoRecordType.Picture),
+            DbfFieldType.Timestamp => DbfFieldDateTimeFormatter.Create(propertyType),
+            DbfFieldType.Variant => DbfFieldVariantFormatter.Create(propertyType),
+            _ => throw new NotSupportedException($"Field type '{descriptor.Type}' is not supported.")
         };
+    }
+}
 
-        static ReadValue GetAutoIncrementReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+internal static class DbfFieldAutoIncrementFormatter
+{
+    public static long ReadRaw(ReadOnlySpan<byte> source) => BinaryPrimitives.ReadInt64LittleEndian(source);
+
+    public static void WriteRaw(Span<byte> target, long value) => BinaryPrimitives.WriteInt64LittleEndian(target, value);
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
         {
-            if (property.PropertyType == typeof(long))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadAutoIncrement(source);
-            }
-
-            if (property.PropertyType == typeof(ulong))
-            {
-                return static (source, _) =>
-                    unchecked((ulong)DbfMarshal.ReadAutoIncrement(source));
-            }
-
-            throw new ArgumentException("AutoIncrement fields must be of a type convertible to Int64", nameof(property));
+            return new DbfFieldFormatter(Read, Write);
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (DbfField)ReadRaw(source);
+            static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, ((DbfField)value!).GetValue<long>());
         }
 
-        static ReadValue GetBinaryReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(int))
         {
-            if (descriptor.Length is 8)
-            {
-                return GetDoubleReader(property, descriptor);
-            }
-
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoBinary(source, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoBinary(source, context.Encoding, context.Memo).ToCharArray();
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoBinary(source, context.Encoding, context.Memo).AsMemory();
-            }
-
-            throw new ArgumentException("Binary fields must be of a type convertible to string", nameof(property));
+            return new DbfFieldFormatter(Read, Write);
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (int)ReadRaw(source);
+            static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, (int)value!);
         }
 
-        static ReadValue GetBlobReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(long))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoBlob(source, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoBlob(source, context.Encoding, context.Memo).ToCharArray();
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoBlob(source, context.Encoding, context.Memo).AsMemory();
-            }
-
-            throw new ArgumentException("Blob fields must be of a type convertible to string", nameof(property));
+            return new DbfFieldFormatter(Read, Write);
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => ReadRaw(source);
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, (long)value!);
         }
 
-        static ReadValue GetCharacterReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(ulong))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadCharacter(source, context.Encoding);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadCharacter(source, context.Encoding).ToCharArray();
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadCharacter(source, context.Encoding).AsMemory();
-            }
-
-            throw new ArgumentException("Character fields must be of a type convertible to string", nameof(property));
+            return new DbfFieldFormatter(Read, Write);
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => unchecked((ulong)ReadRaw(source));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, unchecked((long)(ulong)value!));
         }
 
-        static ReadValue GetCurrencyReader(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(decimal))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadCurrency(source);
-            }
+        throw new ArgumentException("AutoIncrement fields must be of a type convertible to Int64", nameof(propertyType));
+    }
+}
 
-            throw new ArgumentException("Currency fields must be of a type convertible to decimal", nameof(property));
+internal static class DbfFieldCharacterFormatter
+{
+    public static string ReadRaw(ReadOnlySpan<byte> source, Encoding encoding) => encoding.GetString(source.Trim("\0 "u8));
+
+    public static void WriteRaw(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
+    {
+        target.Fill((byte)' ');
+        if (value.IsEmpty)
+            return;
+        _ = encoding.TryGetBytes(value, target, out _);
+    }
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadRaw(source, context.Encoding);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<string>(), context.Encoding);
         }
 
-        static ReadValue GetDateReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(string))
         {
-            if (property.PropertyType == typeof(DateTime))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadDate(source, context.Encoding) ?? default;
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(DateTime?))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadDate(source, context.Encoding);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding);
 
-            if (property.PropertyType == typeof(DateTimeOffset))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadDate(source, context.Encoding) is { } dateTime ? new DateTimeOffset(dateTime) : default;
-            }
-
-            if (property.PropertyType == typeof(DateTimeOffset?))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadDate(source, context.Encoding) is { } dateTime ? new DateTimeOffset(dateTime) : null;
-            }
-
-            if (property.PropertyType == typeof(DateOnly))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadDate(source, context.Encoding) is { } dateTime ? DateOnly.FromDateTime(dateTime) : default;
-            }
-
-            if (property.PropertyType == typeof(DateOnly?))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadDate(source, context.Encoding) is { } dateTime ? DateOnly.FromDateTime(dateTime) : null;
-            }
-
-            throw new ArgumentException("Date fields must be of a type convertible to DateTime", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (string?)value, context.Encoding);
         }
 
-        static ReadValue GetDateTimeReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(char[]))
         {
-            if (property.PropertyType == typeof(DateTime))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDateTime(source) ?? default;
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(DateTime?))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDateTime(source);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding).ToCharArray();
 
-            if (property.PropertyType == typeof(DateTimeOffset))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDateTime(source) is { } dateTime ? new DateTimeOffset(dateTime) : default;
-            }
-
-            if (property.PropertyType == typeof(DateTimeOffset?))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDateTime(source) is { } dateTime ? new DateTimeOffset(dateTime) : null;
-            }
-
-            if (property.PropertyType == typeof(DateOnly))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDateTime(source) is { } dateTime ? DateOnly.FromDateTime(dateTime) : default;
-            }
-
-            if (property.PropertyType == typeof(DateOnly?))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDateTime(source) is { } dateTime ? DateOnly.FromDateTime(dateTime) : null;
-            }
-
-            throw new ArgumentException("DateTime fields must be of a type convertible to DateTime", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (char[]?)value, context.Encoding);
         }
 
-        static ReadValue GetDoubleReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(ReadOnlyMemory<char>))
         {
-            if (property.PropertyType == typeof(double))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadDouble(source);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            throw new ArgumentException("Double fields must be of a type convertible to double", nameof(property));
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding).AsMemory();
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding);
         }
 
-        static ReadValue GetInt32Reader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        throw new ArgumentException("Character fields must be of a type convertible to string", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldCurrencyFormatter
+{
+    public static decimal ReadRaw(ReadOnlySpan<byte> source) => decimal.FromOACurrency(BinaryPrimitives.ReadInt64LittleEndian(source));
+
+    public static void WriteRaw(Span<byte> target, decimal value) => BinaryPrimitives.WriteInt64LittleEndian(target, decimal.ToOACurrency(value));
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
         {
-            if (property.PropertyType == typeof(int))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadInt32(source);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(uint))
-            {
-                return static (source, _) =>
-                    unchecked((uint)DbfMarshal.ReadInt32(source));
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                (DbfField)ReadRaw(source);
 
-            throw new ArgumentException("Int32 fields must be of a type convertible to Int32", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<decimal>());
         }
 
-        static ReadValue GetLogicalReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(decimal))
         {
-            if (property.PropertyType == typeof(bool))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadLogical(source, context.Encoding) ?? false;
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(bool?))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadLogical(source, context.Encoding);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                ReadRaw(source);
 
-            throw new ArgumentException("Logical fields must be of a type convertible to bool", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, (decimal)value!);
         }
 
-        static ReadValue GetMemoReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        throw new ArgumentException("Currency fields must be of a type convertible to decimal", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldDateFormatter
+{
+    public static DateTime? ReadRaw(ReadOnlySpan<byte> source, Encoding encoding)
+    {
+        source = source.Trim("\0 "u8);
+        if (source.Length != 8) return null;
+        Span<char> date = stackalloc char[encoding.GetCharCount(source)];
+        encoding.GetChars(source[..8], date);
+        return DateTime.ParseExact(date, "yyyyMMdd", CultureInfo.InvariantCulture);
+    }
+
+    public static void WriteRaw(Span<byte> target, DateTime? value, Encoding encoding)
+    {
+        if (value is null)
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoString(source, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoString(source, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoString(source, context.Encoding, context.Memo);
-            }
-
-            throw new ArgumentException("Memo fields must be of a type convertible to string", nameof(property));
+            target.Fill((byte)' ');
+            return;
         }
 
-        static ReadValue GetNullFlagsReader(PropertyInfo property, DbfFieldDescriptor descriptor)
+        var dateTime = value.Value;
+        Span<char> chars = stackalloc char[8];
+        if (!dateTime.TryFormat(chars, out _, "yyyyMMdd", CultureInfo.InvariantCulture) ||
+            !encoding.TryGetBytes(chars, target, out _))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, _) =>
-                    DbfMarshal.ReadNullFlags(source);
-            }
-
-            // TODO: Support integers and flag enums.
-            throw new ArgumentException("NullFlags fields must be of a type convertible to string", nameof(property));
-        }
-
-        static ReadValue GetNumericReader(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (descriptor.Decimal is 0)
-            {
-                if (property.PropertyType == typeof(int))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) is { } l ? (int)l : 0;
-                }
-
-                if (property.PropertyType == typeof(int?))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) is { } l ? (int)l : null;
-                }
-
-                if (property.PropertyType == typeof(uint))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) is { } l ? unchecked((uint)l) : 0U;
-                }
-
-                if (property.PropertyType == typeof(uint?))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) is { } l ? unchecked((uint)l) : null;
-                }
-
-                if (property.PropertyType == typeof(long))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) ?? 0L;
-                }
-
-                if (property.PropertyType == typeof(long?))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding);
-                }
-
-                if (property.PropertyType == typeof(ulong))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) is { } l ? unchecked((ulong)l) : 0UL;
-                }
-
-                if (property.PropertyType == typeof(ulong?))
-                {
-                    return static (source, context) =>
-                        DbfMarshal.ReadNumericInteger(source, context.Encoding) is { } l ? unchecked((ulong)l) : null;
-                }
-            }
-
-            if (property.PropertyType == typeof(float))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadNumericDouble(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : 0f;
-            }
-
-            if (property.PropertyType == typeof(float?))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadNumericDouble(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : null;
-            }
-
-            if (property.PropertyType == typeof(double))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadNumericDouble(source, context.Encoding, context.DecimalSeparator) ?? 0D;
-            }
-
-            if (property.PropertyType == typeof(double?))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadNumericDouble(source, context.Encoding, context.DecimalSeparator);
-            }
-
-            throw new ArgumentException("Numeric fields must be of a type convertible to double", nameof(property));
-        }
-
-        static ReadValue GetOleReader(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoOle(source, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoOle(source, context.Encoding, context.Memo).ToCharArray();
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoOle(source, context.Encoding, context.Memo).AsMemory();
-            }
-
-            throw new ArgumentException("Ole fields must be of a type convertible to string", nameof(property));
-        }
-
-        static ReadValue GetPictureReader(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoPicture(source, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoPicture(source, context.Encoding, context.Memo).ToCharArray();
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadMemoPicture(source, context.Encoding, context.Memo).AsMemory();
-            }
-
-            throw new ArgumentException("Picture fields must be of a type convertible to string", nameof(property));
-        }
-
-        static ReadValue GetTimestampReader(PropertyInfo property, DbfFieldDescriptor descriptor)
-            => GetDateTimeReader(property, descriptor);
-
-        static ReadValue GetVariantReader(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadVariant(source, context.Encoding);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadVariant(source, context.Encoding);
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (source, context) =>
-                    DbfMarshal.ReadVariant(source, context.Encoding);
-            }
-
-            throw new ArgumentException("Variant fields must be of a type convertible to string", nameof(property));
+            target.Fill((byte)' ');
         }
     }
 
-    private static WriteValue CreateWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+    public static DbfFieldFormatter Create(Type propertyType)
     {
-        return descriptor.Type switch
+        if (propertyType == typeof(DbfField))
         {
-            DbfFieldType.AutoIncrement => GetAutoIncrementWriter(property, descriptor),
-            DbfFieldType.Binary => GetBinaryWriter(property, descriptor),
-            DbfFieldType.Blob => GetBlobWriter(property, descriptor),
-            DbfFieldType.Character => GetCharacterWriter(property, descriptor),
-            DbfFieldType.Currency => GetCurrencyWriter(property, descriptor),
-            DbfFieldType.Date => GetDateWriter(property, descriptor),
-            DbfFieldType.DateTime => GetDateTimeWriter(property, descriptor),
-            DbfFieldType.Double => GetDoubleWriter(property, descriptor),
-            DbfFieldType.Float => GetNumericWriter(property, descriptor),
-            DbfFieldType.Int32 => GetInt32Writer(property, descriptor),
-            DbfFieldType.Logical => GetLogicalWriter(property, descriptor),
-            DbfFieldType.Memo => GetMemoWriter(property, descriptor),
-            DbfFieldType.NullFlags => GetNullFlagsWriter(property, descriptor),
-            DbfFieldType.Numeric => GetNumericWriter(property, descriptor),
-            DbfFieldType.Ole => GetOleWriter(property, descriptor),
-            DbfFieldType.Picture => GetPictureWriter(property, descriptor),
-            DbfFieldType.Timestamp => GetTimestampWriter(property, descriptor),
-            DbfFieldType.Variant => GetVariantWriter(property, descriptor),
-            _ => throw new NotImplementedException(),
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadRaw(source, context.Encoding);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<DateTime?>(), context.Encoding);
+        }
+
+        if (propertyType == typeof(DateTime) || propertyType == typeof(DateTime?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (DateTime?)value, context.Encoding);
+        }
+
+        if (propertyType == typeof(DateOnly) || propertyType == typeof(DateOnly?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
+            {
+                var dt = ReadRaw(source, context.Encoding);
+                return dt is null ? null : DateOnly.FromDateTime(dt.Value);
+            }
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((DateOnly?)value)?.ToDateTime(TimeOnly.MinValue), context.Encoding);
+        }
+
+        throw new ArgumentException("Date fields must be of a type convertible to DateTime", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldDateTimeFormatter
+{
+    public static DateTime? ReadRaw(ReadOnlySpan<byte> source)
+    {
+        var julian = BinaryPrimitives.ReadInt32LittleEndian(source);
+        if (julian is 0) return null;
+        var milliseconds = BinaryPrimitives.ReadInt32LittleEndian(source.Slice(4, 4));
+        return DateTime.FromOADate(julian - 2415018.5).AddMilliseconds(milliseconds);
+    }
+
+    public static void WriteRaw(Span<byte> target, DateTime? value)
+    {
+        if (value is null)
+        {
+            target.Clear();
+            return;
+        }
+
+        var dateTime = value.Value;
+        var julian = (int)(dateTime.Date.ToOADate() + 2415018.5);
+        BinaryPrimitives.WriteInt32LittleEndian(target, julian);
+        var milliseconds = 43200000 /* 12h */ + (int)dateTime.TimeOfDay.TotalMilliseconds;
+        BinaryPrimitives.WriteInt32LittleEndian(target.Slice(4, 4), milliseconds);
+    }
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                (DbfField)ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<DateTime?>());
+        }
+
+        if (propertyType == typeof(DateTime) || propertyType == typeof(DateTime?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, (DateTime?)value);
+        }
+
+        if (propertyType == typeof(DateTimeOffset) || propertyType == typeof(DateTimeOffset?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _)
+            {
+                var dt = ReadRaw(source);
+                return dt is null ? null : new DateTimeOffset(dt.Value);
+            }
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, ((DateTimeOffset?)value)?.DateTime);
+        }
+
+        throw new ArgumentException("DateTime fields must be of a type convertible to DateTime", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldDoubleFormatter
+{
+    public static double ReadRaw(ReadOnlySpan<byte> source)
+        => BinaryPrimitives.ReadDoubleLittleEndian(source);
+
+    public static void WriteRaw(Span<byte> target, double value)
+        => BinaryPrimitives.WriteDoubleLittleEndian(target, value);
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                (DbfField)ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<double>());
+        }
+
+        if (propertyType == typeof(double))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, (double)value!);
+        }
+
+        throw new ArgumentException("Double fields must be of a type convertible to double", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldNumericFormatter
+{
+    public static double? ReadRaw(ReadOnlySpan<byte> source, Encoding encoding, char decimalSeparator)
+    {
+        source = source.Trim("\0 "u8);
+        if (source.IsEmpty || (source.Length == 1 && !char.IsAsciiDigit((char)source[0])))
+            return null;
+        Span<char> @double = stackalloc char[encoding.GetCharCount(source)];
+        encoding.GetChars(source, @double);
+        if (decimalSeparator != '.' && @double.IndexOf(decimalSeparator) is var idx and >= 0)
+            @double[idx] = '.';
+        return double.Parse(@double, NumberStyles.Number, CultureInfo.InvariantCulture);
+    }
+
+    public static long? ReadRaw(ReadOnlySpan<byte> source, Encoding encoding)
+    {
+        source = source.Trim("\0 "u8);
+        if (source.IsEmpty) return null;
+        Span<char> integer = stackalloc char[encoding.GetCharCount(source)];
+        encoding.GetChars(source, integer);
+        return long.Parse(integer, NumberStyles.Integer, CultureInfo.InvariantCulture);
+    }
+
+    public static void WriteRaw(Span<byte> target, double? value, byte @decimal, Encoding encoding, char decimalSeparator)
+    {
+        target.Fill((byte)' ');
+        if (value is null)
+            return;
+
+        var f64 = value.Value;
+
+        Span<char> format = ['F', '\0', '\0'];
+        if (!@decimal.TryFormat(format[1..], out var charsWritten))
+            throw new InvalidOperationException("Failed to create decimal format");
+        format = format[..(1 + charsWritten)];
+
+        Span<char> chars = stackalloc char[20];
+        if (!f64.TryFormat(chars, out charsWritten, format, CultureInfo.InvariantCulture))
+            throw new InvalidOperationException($"Failed to format value '{f64}' for numeric field");
+
+        if (decimalSeparator is not '.' && chars.IndexOf(decimalSeparator) is var idx and >= 0)
+            chars[idx] = decimalSeparator;
+
+        _ = encoding.TryGetBytes(chars[..charsWritten], target, out _);
+    }
+
+    public static void WriteRaw(Span<byte> target, long? value, Encoding encoding)
+    {
+        target.Fill((byte)' ');
+        if (value is null)
+            return;
+
+        var i64 = value.Value;
+
+        Span<char> @long = stackalloc char[20];
+        if (!i64.TryFormat(@long, out var charsWritten, "D", CultureInfo.InvariantCulture))
+            throw new InvalidOperationException($"Failed to format value '{i64}' as '{DbfFieldType.Numeric}'");
+        _ = encoding.TryGetBytes(@long[..charsWritten], target, out _);
+    }
+
+    public static DbfFieldFormatter Create(Type propertyType, byte @decimal)
+    {
+        if (@decimal is 0)
+        {
+            if (propertyType == typeof(DbfField))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    (DbfField)ReadRaw(source, context.Encoding);
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, ((DbfField)value!).GetValue<long?>(), context.Encoding);
+            }
+
+            if (propertyType == typeof(int))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) is { } l ? (int)l : 0;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, (int?)value, context.Encoding);
+            }
+
+            if (propertyType == typeof(int?))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) is { } l ? (int)l : null;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, (int?)value, context.Encoding);
+            }
+
+            if (propertyType == typeof(uint))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) is { } l ? unchecked((uint)l) : 0U;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, (uint?)value, context.Encoding);
+            }
+
+            if (propertyType == typeof(uint?))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) is { } l ? unchecked((uint)l) : null;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, (uint?)value, context.Encoding);
+            }
+
+            if (propertyType == typeof(long))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) ?? 0L;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, (long?)value, context.Encoding);
+            }
+
+            if (propertyType == typeof(long?))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding);
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, (long?)value, context.Encoding);
+            }
+
+            if (propertyType == typeof(ulong))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) is { } l ? unchecked((ulong)l) : 0UL;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, unchecked((long?)(ulong?)value), context.Encoding);
+            }
+
+            if (propertyType == typeof(ulong?))
+            {
+                return new DbfFieldFormatter(Read, Write);
+
+                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                    ReadRaw(source, context.Encoding) is { } l ? unchecked((ulong)l) : null;
+
+                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                    WriteRaw(target, unchecked((long?)(ulong?)value), context.Encoding);
+            }
+        }
+
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadRaw(source, context.Encoding, context.DecimalSeparator);
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<double?>(), @decimal, context.Encoding, context.DecimalSeparator);
+        }
+
+        if (propertyType == typeof(float))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : 0f;
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (float?)value, @decimal, context.Encoding, context.DecimalSeparator);
+        }
+
+        if (propertyType == typeof(float?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : null;
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (float?)value, @decimal, context.Encoding, context.DecimalSeparator);
+        }
+
+        if (propertyType == typeof(double))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding, context.DecimalSeparator) ?? 0D;
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (double?)value, @decimal, context.Encoding, context.DecimalSeparator);
+        }
+
+        if (propertyType == typeof(double?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding, context.DecimalSeparator);
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (double?)value, @decimal, context.Encoding, context.DecimalSeparator);
+        }
+
+        throw new ArgumentException("Numeric fields must be of a type convertible to double", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldInt32Formatter
+{
+    public static int ReadRaw(ReadOnlySpan<byte> source)
+        => BinaryPrimitives.ReadInt32LittleEndian(source);
+
+    public static void WriteRaw(Span<byte> target, int value)
+        => BinaryPrimitives.WriteInt32LittleEndian(target, value);
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                (DbfField)ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<int>());
+        }
+
+        if (propertyType == typeof(int))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, (int)value!);
+        }
+
+        if (propertyType == typeof(uint))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                unchecked((uint)ReadRaw(source));
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, unchecked((int)(uint)value!));
+        }
+
+        throw new ArgumentException("Int32 fields must be of a type convertible to Int32", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldLogicalFormatter
+{
+    public static bool? ReadRaw(ReadOnlySpan<byte> source, Encoding encoding)
+    {
+        if (encoding.GetCharCount(source) is not 1) return null;
+        Span<char> v = ['\0'];
+        encoding.GetChars(source, v);
+        return char.ToUpperInvariant(v[0]) switch
+        {
+            '?' or ' ' => null,
+            'T' or 'Y' or '1' => true,
+            'F' or 'N' or '0' => false,
+            // TODO: Maybe we should just return null?
+            _ => throw new InvalidOperationException($"Invalid {nameof(DbfFieldType.Logical)} value '{encoding.GetString(source)}'"),
         };
+    }
 
-        static WriteValue GetAutoIncrementWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+    public static void WriteRaw(Span<byte> target, bool? value)
+        => target[0] = value is null ? (byte)'?' : value.Value ? (byte)'T' : (byte)'F';
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
         {
-            if (property.PropertyType == typeof(long))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteAutoIncrement(target, (long)value!);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(ulong))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteAutoIncrement(target, unchecked((long)(ulong)value!));
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadRaw(source, context.Encoding);
 
-            throw new ArgumentException("AutoIncrement fields must be of a type convertible to Int64", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<bool?>());
         }
 
-        static WriteValue GetBinaryWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(bool) || propertyType == typeof(bool?))
         {
-            if (descriptor.Length is 8)
-            {
-                return GetDoubleWriter(property, descriptor);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoBinary(target, (string?)value, context.Encoding, context.Memo);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding);
 
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoBinary(target, (char[]?)value, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoBinary(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
-            }
-
-            throw new ArgumentException("Binary fields must be of a type convertible to string", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, (bool?)value);
         }
 
-        static WriteValue GetBlobWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        throw new ArgumentException("Logical fields must be of a type convertible to bool", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldMemoFormatter
+{
+    private static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
+    {
+        if (memo is null || source is [])
+            return string.Empty;
+
+        int index;
+        if (source.Length is 4)
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoBlob(target, (string?)value, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoBlob(target, (char[]?)value, context.Encoding, context.Memo);
-            }
-
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoBlob(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
-            }
-
-            throw new ArgumentException("Blob fields must be of a type convertible to string", nameof(property));
+            index = BinaryPrimitives.ReadInt32LittleEndian(source);
+        }
+        else
+        {
+            Span<char> chars = stackalloc char[encoding.GetCharCount(source)];
+            encoding.GetChars(source, chars);
+            chars = chars.Trim();
+            if (chars is [])
+                return string.Empty;
+            index = int.Parse(chars);
         }
 
-        static WriteValue GetCharacterWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (index == 0)
+            return string.Empty;
+
+        var writer = new BufferWriterSlim<byte>(memo.BlockLength);
+
+        try
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteCharacter(target, (string?)value, context.Encoding);
-            }
+            memo.Get(index, out _, ref writer);
 
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteCharacter(target, (char[]?)value, context.Encoding);
-            }
+            var data = type is MemoRecordType.Memo
+                ? encoding.GetString(writer.WrittenSpan)
+                : Convert.ToBase64String(writer.WrittenSpan);
 
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteCharacter(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding);
-            }
+            return data;
+        }
+        finally
+        {
+            writer.Dispose();
+        }
+    }
 
-            throw new ArgumentException("Character fields must be of a type convertible to string", nameof(property));
+    private static void WriteMemo(Span<byte> target, MemoRecordType type, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
+    {
+        target.Fill(target.Length is 4 ? (byte)0 : (byte)' ');
+        if (memo is null || value.Length is 0)
+            return;
+
+        var index = memo.NextIndex;
+
+        if (target.Length is 4)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(target, index);
+        }
+        else
+        {
+            Span<char> chars = stackalloc char[10];
+            index.TryFormat(chars, out var charsWritten, default, CultureInfo.InvariantCulture);
+            var bytesRequired = encoding.GetByteCount(chars[..charsWritten]);
+            encoding.TryGetBytes(chars[..charsWritten], target[Math.Max(0, 10 - bytesRequired)..], out _);
         }
 
-        static WriteValue GetCurrencyWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(decimal))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteCurrency(target, (decimal)value!);
-            }
+        using var data = type is MemoRecordType.Memo
+            ? encoding.GetBytes(value)
+            : new Base64Decoder().DecodeFromUtf16(value);
 
-            throw new ArgumentException("Currency fields must be of a type convertible to decimal", nameof(property));
+        memo.Add(type, data.Span);
+    }
+
+    public static DbfFieldFormatter Create(Type propertyType, MemoRecordType recordType)
+    {
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadMemo(source, recordType, context.Encoding, context.Memo);
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteMemo(target, recordType, ((DbfField)value!).GetValue<string>(), context.Encoding, context.Memo);
         }
 
-        static WriteValue GetDateWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(string))
         {
-            if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteDate(target, (DateTime?)value, context.Encoding);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(DateTimeOffset) || property.PropertyType == typeof(DateTimeOffset?))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteDate(target, ((DateTimeOffset?)value)?.DateTime, context.Encoding);
-            }
+            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadMemo(source, recordType, context.Encoding, context.Memo);
 
-            if (property.PropertyType == typeof(DateOnly) || property.PropertyType == typeof(DateOnly?))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteDate(target, ((DateOnly?)value)?.ToDateTime(TimeOnly.MinValue), context.Encoding);
-            }
-
-            throw new ArgumentException("Date fields must be of a type convertible to DateTime", nameof(property));
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteMemo(target, recordType, (string?)value, context.Encoding, context.Memo);
         }
 
-        static WriteValue GetDateTimeWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(char[]))
         {
-            if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteDateTime(target, (DateTime?)value);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(DateTimeOffset) || property.PropertyType == typeof(DateTimeOffset?))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteDateTime(target, ((DateTimeOffset?)value)?.DateTime);
-            }
+            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadMemo(source, recordType, context.Encoding, context.Memo).ToCharArray();
 
-            if (property.PropertyType == typeof(DateOnly) || property.PropertyType == typeof(DateOnly?))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteDateTime(target, ((DateOnly?)value)?.ToDateTime(TimeOnly.MinValue));
-            }
-
-            throw new ArgumentException("DateTime fields must be of a type convertible to DateTime", nameof(property));
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteMemo(target, recordType, (char[]?)value, context.Encoding, context.Memo);
         }
 
-        static WriteValue GetDoubleWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(ReadOnlyMemory<char>))
         {
-            if (property.PropertyType == typeof(double))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteDouble(target, (double)value!);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            throw new ArgumentException("Double fields must be of a type convertible to double", nameof(property));
+            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadMemo(source, recordType, context.Encoding, context.Memo).AsMemory();
+
+            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteMemo(target, recordType, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
         }
 
-        static WriteValue GetInt32Writer(PropertyInfo property, DbfFieldDescriptor descriptor)
+        throw new ArgumentException("Memo fields must be of a type convertible to string", nameof(propertyType));
+    }
+}
+
+internal static class DbfFieldNullFlagsFormatter
+{
+    public static string ReadRaw(ReadOnlySpan<byte> source)
+        => Convert.ToHexString(source);
+
+    public static void WriteRaw(Span<byte> target, ReadOnlySpan<char> value)
+    {
+        if (value.Length is 0)
         {
-            if (property.PropertyType == typeof(int))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteInt32(target, (int)value!);
-            }
-
-            if (property.PropertyType == typeof(uint))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteInt32(target, unchecked((int)(uint)value!));
-            }
-
-            throw new ArgumentException("Int32 fields must be of a type convertible to Int32", nameof(property));
+            target.Clear();
+            return;
         }
 
-        static WriteValue GetLogicalWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(bool) || property.PropertyType == typeof(bool?))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteLogical(target, (bool?)value);
-            }
+        Convert.FromHexString(value, target, out _, out _);
+    }
 
-            throw new ArgumentException("Logical fields must be of a type convertible to bool", nameof(property));
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<string>());
         }
 
-        static WriteValue GetMemoWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(string))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoString(target, (string?)value, context.Encoding, context.Memo);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoString(target, (char[]?)value, context.Encoding, context.Memo);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source);
 
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoString(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
-            }
-
-            throw new ArgumentException("Memo fields must be of a type convertible to string", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (string?)value);
         }
 
-        static WriteValue GetNullFlagsWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
-        {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, _) =>
-                    DbfMarshal.WriteNullFlags(target, (string?)value);
-            }
+        throw new ArgumentException("NullFlags fields must be of a type convertible to string", nameof(propertyType));
+    }
+}
 
-            // TODO: Support integers and flag enums.
-            throw new ArgumentException("NullFlags fields must be of a type convertible to string", nameof(property));
+internal static class DbfFieldVariantFormatter
+{
+    public static string ReadRaw(ReadOnlySpan<byte> source, Encoding encoding)
+        => encoding.GetString(source[..source[^1]]);
+
+    public static void WriteRaw(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
+    {
+        if (value.Length is 0)
+        {
+            target.Fill((byte)' ');
+            return;
         }
 
-        static WriteValue GetNumericWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        _ = encoding.TryGetBytes(value, target[..^1], out var bytesWritten);
+        target[^1] = (byte)bytesWritten;
+    }
+
+    public static DbfFieldFormatter Create(Type propertyType)
+    {
+        if (propertyType == typeof(DbfField))
         {
-            if (descriptor.Decimal is 0)
-            {
-                // TODO: Support other integer types.
-                if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
-                {
-                    return static (target, value, context) =>
-                        DbfMarshal.WriteNumericInteger(target, (int?)value, context.Encoding);
-                }
+            return new DbfFieldFormatter(Read, Write);
 
-                if (property.PropertyType == typeof(uint) || property.PropertyType == typeof(uint?))
-                {
-                    return static (target, value, context) =>
-                        DbfMarshal.WriteNumericInteger(target, (uint?)value, context.Encoding);
-                }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                (DbfField)ReadRaw(source, context.Encoding);
 
-                if (property.PropertyType == typeof(long) || property.PropertyType == typeof(long?))
-                {
-                    return static (target, value, context) =>
-                        DbfMarshal.WriteNumericInteger(target, (long?)value, context.Encoding);
-                }
-
-                if (property.PropertyType == typeof(ulong) || property.PropertyType == typeof(ulong?))
-                {
-                    return static (target, value, context) =>
-                        DbfMarshal.WriteNumericInteger(target, value is null ? null : unchecked((long)(ulong)value), context.Encoding);
-                }
-            }
-
-            if (property.PropertyType == typeof(double) || property.PropertyType == typeof(double?))
-            {
-                return (target, value, context) =>
-                    DbfMarshal.WriteNumericFloat(target, (double?)value, descriptor.Decimal, context.Encoding, context.DecimalSeparator);
-            }
-
-            if (property.PropertyType == typeof(float) || property.PropertyType == typeof(float?))
-            {
-                return (target, value, context) =>
-                    DbfMarshal.WriteNumericFloat(target, (float?)value, descriptor.Decimal, context.Encoding, context.DecimalSeparator);
-            }
-
-            throw new ArgumentException("Numeric fields must be of a type convertible to double", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((DbfField)value!).GetValue<string>(), context.Encoding);
         }
 
-        static WriteValue GetOleWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(string))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoOle(target, (string?)value, context.Encoding, context.Memo);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoOle(target, (char[]?)value, context.Encoding, context.Memo);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding);
 
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoOle(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
-            }
-
-            throw new ArgumentException("Ole fields must be of a type convertible to string", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (string?)value, context.Encoding);
         }
 
-        static WriteValue GetPictureWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(char[]))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoPicture(target, (string?)value, context.Encoding, context.Memo);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoPicture(target, (char[]?)value, context.Encoding, context.Memo);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding).ToCharArray();
 
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteMemoPicture(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
-            }
-
-            throw new ArgumentException("Picture fields must be of a type convertible to string", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, (char[]?)value, context.Encoding);
         }
 
-        static WriteValue GetTimestampWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
-            => GetDateTimeWriter(property, descriptor);
-
-        static WriteValue GetVariantWriter(PropertyInfo property, DbfFieldDescriptor descriptor)
+        if (propertyType == typeof(ReadOnlyMemory<char>))
         {
-            if (property.PropertyType == typeof(string))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteVariant(target, (string?)value, context.Encoding);
-            }
+            return new DbfFieldFormatter(Read, Write);
 
-            if (property.PropertyType == typeof(char[]))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteVariant(target, (char[]?)value, context.Encoding);
-            }
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadRaw(source, context.Encoding).AsMemory();
 
-            if (property.PropertyType == typeof(ReadOnlyMemory<char>))
-            {
-                return static (target, value, context) =>
-                    DbfMarshal.WriteVariant(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding);
-            }
-
-            throw new ArgumentException("Variant fields must be of a type convertible to string", nameof(property));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteRaw(target, ((ReadOnlyMemory<char>)value!).Span, context.Encoding);
         }
+
+        throw new ArgumentException("Variant fields must be of a type convertible to string", nameof(propertyType));
     }
 }
