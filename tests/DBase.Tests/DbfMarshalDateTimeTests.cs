@@ -1,4 +1,4 @@
-﻿using DBase.Interop;
+﻿using DBase.Serialization;
 
 namespace DBase.Tests;
 
@@ -19,8 +19,8 @@ public class DbfMarshalDateTimeTests
     {
         var buffer = new byte[8];
 
-        DbfMarshal.WriteDateTime(buffer, originalDate);
-        var decodedDate = DbfMarshal.ReadDateTime(buffer);
+        DbfFieldDateTimeFormatter.WriteRaw(buffer, originalDate);
+        var decodedDate = DbfFieldDateTimeFormatter.ReadRaw(buffer);
 
         Assert.NotNull(decodedDate);
         Assert.Equal(originalDate, decodedDate.Value);
@@ -31,8 +31,8 @@ public class DbfMarshalDateTimeTests
     {
         var buffer = new byte[8];
 
-        DbfMarshal.WriteDateTime(buffer, null);
-        var decodedDate = DbfMarshal.ReadDateTime(buffer);
+        DbfFieldDateTimeFormatter.WriteRaw(buffer, null);
+        var decodedDate = DbfFieldDateTimeFormatter.ReadRaw(buffer);
 
         Assert.Null(decodedDate);
     }
@@ -41,7 +41,7 @@ public class DbfMarshalDateTimeTests
     public void ZeroedBuffer_ShouldReturnNull()
     {
         var buffer = new byte[8]; // All zeroes
-        var decodedDate = DbfMarshal.ReadDateTime(buffer);
+        var decodedDate = DbfFieldDateTimeFormatter.ReadRaw(buffer);
         Assert.Null(decodedDate);
     }
 }
