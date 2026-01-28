@@ -43,16 +43,7 @@ public sealed class Dbf : IDisposable
     /// <summary>
     /// Gets or sets the date of the last update to the database.
     /// </summary>
-    public DateOnly LastUpdate
-    {
-        get
-        {
-            var year = 1900 + _header.LastUpdateYear;
-            var month = int.Clamp(_header.LastUpdateMonth, 1, 12);
-            var day = int.Clamp(_header.LastUpdateDay, 1, DateTime.DaysInMonth(year, month));
-            return new DateOnly(year, month, day);
-        }
-    }
+    public DateOnly LastUpdate => _header.LastUpdate;
 
     /// <summary>
     /// Gets the length of the header in bytes.
@@ -72,18 +63,13 @@ public sealed class Dbf : IDisposable
         get => (int)_header.RecordCount;
         private set
         {
-            if (_header.RecordCount != value)
+            if (_header.RecordCount == value) return;
+            _header = _header with
             {
-                var now = DateTime.Now;
-                _header = _header with
-                {
-                    RecordCount = (uint)value,
-                    LastUpdateYear = (byte)(now.Year - 1900),
-                    LastUpdateMonth = (byte)now.Month,
-                    LastUpdateDay = (byte)now.Day,
-                };
-                _dirty = true;
-            }
+                RecordCount = (uint)value,
+                LastUpdate = DateOnly.FromDateTime(DateTime.Now),
+            };
+            _dirty = true;
         }
     }
 
@@ -191,15 +177,11 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
-        var now = DateTime.Now;
-
         var header = new DbfHeader
         {
             HeaderLength = (ushort)(DbfHeader.Size + descriptors.Length * DbfFieldDescriptor.Size + 1),
             Language = language,
-            LastUpdateYear = (byte)(now.Year - 1900),
-            LastUpdateMonth = (byte)now.Month,
-            LastUpdateDay = (byte)now.Day,
+            LastUpdate = DateOnly.FromDateTime(DateTime.Now),
             RecordCount = 0,
             RecordLength = (ushort)(1 + descriptors.Sum(static d => d.Length)),
             TableFlags = descriptors.GetTableFlags(),
@@ -318,40 +300,6 @@ public sealed class Dbf : IDisposable
         }
     }
 
-    internal long SetStreamPositionForRecord(int recordIndex) =>
-        _dbf.Position = _header.HeaderLength + recordIndex * _header.RecordLength;
-
-    internal long SetStreamPositionForField(int recordIndex, int fieldIndex) =>
-        _dbf.Position = _header.HeaderLength + recordIndex * _header.RecordLength + Descriptors[fieldIndex].Offset;
-
-    internal bool ReadRecord<T>(int recordIndex, [MaybeNullWhen(false)] out T record)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
-
-        record = default;
-
-        if (recordIndex >= RecordCount)
-        {
-            return false;
-        }
-
-        SetStreamPositionForRecord(recordIndex);
-
-        using var buffer = _header.RecordLength < StackallocThreshold
-            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
-            : new SpanOwner<byte>(_header.RecordLength);
-
-        var bytesRead = _dbf.ReadAtLeast(buffer.Span, _header.RecordLength, throwOnEndOfStream: false);
-        if (bytesRead != _header.RecordLength)
-        {
-            return false;
-        }
-
-        record = Descriptors.GetSerializer<T>().Deserialize(buffer.Span, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
-
-        return true;
-    }
-
     /// <summary>
     /// Gets the record at the specified <paramref name="index"/>.
     /// </summary>
@@ -387,6 +335,50 @@ public sealed class Dbf : IDisposable
         }
     }
 
+    /// <summary>
+    /// Adds a new record to the database.
+    /// </summary>
+    /// <param name="record">The record to add.</param>
+    public void Add(DbfRecord record) => WriteRecord(RecordCount, record);
+
+    /// <summary>
+    /// Adds a new record to the database.
+    /// </summary>
+    /// <typeparam name="T">The type of the record.</typeparam>
+    /// <param name="record">The record to add.</param>
+    public void Add<T>(T record) => WriteRecord(RecordCount, record);
+
+    internal long SetStreamPositionForRecord(int recordIndex) =>
+        _dbf.Position = _header.HeaderLength + recordIndex * _header.RecordLength;
+
+    internal bool ReadRecord<T>(int recordIndex, [MaybeNullWhen(false)] out T record)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(recordIndex);
+
+        record = default;
+
+        if (recordIndex >= RecordCount)
+        {
+            return false;
+        }
+
+        SetStreamPositionForRecord(recordIndex);
+
+        using var buffer = _header.RecordLength < StackallocThreshold
+            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
+            : new SpanOwner<byte>(_header.RecordLength);
+
+        var bytesRead = _dbf.ReadAtLeast(buffer.Span, _header.RecordLength, throwOnEndOfStream: false);
+        if (bytesRead != _header.RecordLength)
+        {
+            return false;
+        }
+
+        record = Descriptors.GetSerializer<T>().Deserialize(buffer.Span, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
+
+        return true;
+    }
+
     internal void WriteRecord<T>(int index, T record)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(index, RecordCount);
@@ -402,17 +394,4 @@ public sealed class Dbf : IDisposable
 
         RecordCount = Math.Max(RecordCount, index + 1);
     }
-
-    /// <summary>
-    /// Adds a new record to the database.
-    /// </summary>
-    /// <param name="record">The record to add.</param>
-    public void Add(DbfRecord record) => WriteRecord(RecordCount, record);
-
-    /// <summary>
-    /// Adds a new record to the database.
-    /// </summary>
-    /// <typeparam name="T">The type of the record.</typeparam>
-    /// <param name="record">The record to add.</param>
-    public void Add<T>(T record) => WriteRecord(RecordCount, record);
 }

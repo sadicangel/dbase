@@ -2,42 +2,42 @@
 
 namespace DBase.Serialization;
 
-internal readonly record struct DbfRecordFormatter
+internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor> descriptors)
 {
-    private readonly ImmutableArray<DbfFieldDescriptor> _descriptors;
-    private readonly ImmutableArray<DbfFieldFormatter> _formatters;
+    private readonly ImmutableArray<DbfFieldFormatter> _formatters = CreateFormatters(descriptors);
 
-    public DbfRecordFormatter(ImmutableArray<DbfFieldDescriptor> descriptors)
+    public static ImmutableArray<DbfFieldFormatter> CreateFormatters(ImmutableArray<DbfFieldDescriptor> descriptors)
     {
+        var propertyTypes = descriptors.GetPropertyTypes<T>();
         var formatters = ImmutableArray.CreateBuilder<DbfFieldFormatter>(descriptors.Length);
-        foreach (var descriptor in descriptors)
+        foreach (var (propertyType, descriptor) in propertyTypes.Zip(descriptors))
         {
-            formatters.Add(DbfFieldFormatter.Create(typeof(DbfField), descriptor));
+            formatters.Add(DbfFieldFormatter.Create(propertyType, descriptor));
         }
 
-        _descriptors = descriptors;
-        _formatters = formatters.MoveToImmutable();
+        return formatters.MoveToImmutable();
     }
 
-    public DbfRecord Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
+    public object?[] Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
     {
-        var status = (DbfRecordStatus)source[0];
+        _ = (DbfRecordStatus)source[0];
 
-        var fields = ImmutableArray.CreateBuilder<DbfField>(_descriptors.Length);
-        foreach (var (descriptor, reader) in _descriptors.Zip(_formatters))
+        var values = new object?[descriptors.Length];
+        var i = 0;
+        foreach (var (descriptor, reader) in descriptors.Zip(_formatters))
         {
-            fields.Add((DbfField)reader.Read(source.Slice(descriptor.Offset, descriptor.Length), context)!);
+            values[i++] = reader.Read(source.Slice(descriptor.Offset, descriptor.Length), context);
         }
 
-        return new DbfRecord(status, fields.MoveToImmutable());
+        return values;
     }
 
-    public void Write(Span<byte> target, DbfRecord record, DbfSerializationContext context)
+    public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, DbfSerializationContext context)
     {
-        target[0] = (byte)record.Status;
-        foreach (var (descriptor, writer, field) in _descriptors.Zip(_formatters, record))
+        target[0] = (byte)status;
+        foreach (var (descriptor, writer, value) in descriptors.Zip(_formatters, values))
         {
-            writer.Write(target.Slice(descriptor.Offset, descriptor.Length), field, context);
+            writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, context);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using System.Collections.Immutable;
+using System.Linq.Expressions;
 
 namespace DBase.Serialization;
 
@@ -17,6 +18,22 @@ internal readonly record struct TypeProjection<T>
     private static Func<object?[], T> GetCreateFunction()
     {
         var type = typeof(T);
+        if (type == typeof(DbfRecord))
+        {
+            return DbfRecordCreate;
+
+            static T DbfRecordCreate(object?[] values)
+            {
+                var fields = ImmutableArray.CreateBuilder<DbfField>(values.Length);
+                foreach (var value in values)
+                {
+                    fields.Add((DbfField)value!);
+                }
+
+                return (T)(object)new DbfRecord(fields.MoveToImmutable());
+            }
+        }
+
         var properties = type.GetProperties();
         var constructor = type.GetConstructor([.. properties.Select(x => x.PropertyType)])
             ?? type.GetConstructor(Type.EmptyTypes)
@@ -51,6 +68,13 @@ internal readonly record struct TypeProjection<T>
     private static Func<T, object?[]> GetValuesFunction()
     {
         var type = typeof(T);
+        if (type == typeof(DbfRecord))
+        {
+            return DbfRecordValues;
+
+            static object?[] DbfRecordValues(T record) => ((DbfRecord)(object)record!).Fields.Cast<object?>().ToArray();
+        }
+
         var properties = type.GetProperties();
         var instance = Expression.Parameter(type, "instance");
         var array = Expression.NewArrayInit(
