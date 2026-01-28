@@ -8,7 +8,7 @@ internal static class SerializerExtensions
 
     extension(ImmutableArray<DbfFieldDescriptor> descriptors)
     {
-        public IDbfRecordSerializer<T> GetSerializer<T>()
+        public DbfRecordSerializer<T> GetSerializer<T>()
         {
             lock (s_cache)
             {
@@ -19,13 +19,28 @@ internal static class SerializerExtensions
 
                 if (!typeCache.TryGetValue(typeof(T), out var serializer))
                 {
-                    typeCache[typeof(T)] = serializer = typeof(T) == typeof(DbfRecord)
-                        ? new DbfRecordSerializer(descriptors)
-                        : new DbfRecordSerializer<T>(descriptors);
+                    typeCache[typeof(T)] = serializer = new DbfRecordSerializer<T>(descriptors);
                 }
 
-                return (IDbfRecordSerializer<T>)serializer;
+                return (DbfRecordSerializer<T>)serializer;
             }
+        }
+
+        public IEnumerable<Type> GetPropertyTypes<T>()
+        {
+            if (typeof(T) == typeof(DbfRecord))
+            {
+                return Enumerable.Repeat(typeof(DbfField), descriptors.Length);
+            }
+
+            var properties = typeof(T).GetProperties();
+            if (properties.Length != descriptors.Length)
+            {
+                // TODO: Improve exception message to include type and missing property names.
+                throw new InvalidOperationException($"The number of properties does not match the number of field descriptors. Expected: {descriptors.Length}, Actual: {properties.Length}");
+            }
+
+            return properties.Select(x => x.PropertyType);
         }
     }
 }

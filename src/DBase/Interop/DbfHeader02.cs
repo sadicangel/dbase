@@ -21,13 +21,28 @@ internal readonly record struct DbfHeader02
 
     [field: FieldOffset(6)] public ushort RecordLength { get; init; }
 
+    public DateOnly LastUpdate
+    {
+        get
+        {
+            var year = 1900 + LastUpdateYear;
+            var month = int.Clamp(LastUpdateMonth, 1, 12);
+            var day = int.Clamp(LastUpdateDay, 1, DateTime.DaysInMonth(year, month));
+            return new DateOnly(year, month, day);
+        }
+        init
+        {
+            LastUpdateYear = (byte)(value.Year - 1900);
+            LastUpdateMonth = (byte)value.Month;
+            LastUpdateDay = (byte)value.Day;
+        }
+    }
+
     public static implicit operator DbfHeader(DbfHeader02 header) => new()
     {
         Version = header.Version,
         RecordCount = header.RecordCount,
-        LastUpdateYear = header.LastUpdateYear,
-        LastUpdateMonth = header.LastUpdateMonth,
-        LastUpdateDay = header.LastUpdateDay,
+        LastUpdate = header.LastUpdate,
         RecordLength = header.RecordLength,
         HeaderLength = HeaderLengthInDisk,
     };
@@ -36,9 +51,7 @@ internal readonly record struct DbfHeader02
     {
         Version = header.Version,
         RecordCount = (ushort)header.RecordCount,
-        LastUpdateYear = header.LastUpdateYear,
-        LastUpdateMonth = header.LastUpdateMonth,
-        LastUpdateDay = header.LastUpdateDay,
+        LastUpdate = header.LastUpdate,
         RecordLength = header.RecordLength,
     };
 }
