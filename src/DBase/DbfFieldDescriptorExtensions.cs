@@ -9,13 +9,12 @@ internal static class DbfFieldDescriptorExtensions
     {
         public DbfTableFlags GetTableFlags()
         {
-            var flags = DbfTableFlags.None;
-            if (descriptors.Any(descriptor => descriptor.Type == DbfFieldType.Memo))
+            if (descriptors.Any(descriptor => descriptor.Type is DbfFieldType.Binary or DbfFieldType.Blob or DbfFieldType.Memo))
             {
-                flags |= DbfTableFlags.HasMemoField;
+                return DbfTableFlags.HasMemoField;
             }
 
-            return flags;
+            return DbfTableFlags.None;
         }
 
         public void EnsureFieldOffsets()

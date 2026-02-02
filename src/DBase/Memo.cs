@@ -92,6 +92,28 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         return new Memo(stream, version);
     }
 
+    /// <summary>
+    /// Saves the current <see cref="Memo"/> to a new file with the specified file name.
+    /// </summary>
+    /// <param name="fileName">The name of the file to which the data will be saved.</param>
+    public void Save(string fileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        using var memo = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
+        WriteTo(memo);
+    }
+
+    /// <summary>
+    /// Writes the current <see cref="Memo"/> to the specified stream.
+    /// </summary>
+    /// <param name="stream">The stream to which the contents will be written to.</param>
+    public void WriteTo(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        _memo.Position = 0;
+        _memo.CopyTo(stream);
+    }
+
     private static (int nextIndex, ushort blockLength) ReadHeaderInfo(Stream stream, DbfVersion version)
     {
         stream.Position = 0;
