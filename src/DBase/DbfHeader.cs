@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -60,6 +61,7 @@ public readonly record struct DbfHeader
     [field: FieldOffset(10)]
     public ushort RecordLength { get; init; }
 
+    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     [FieldOffset(12)] private readonly Reserved16 _reserved16;
 
     [field: FieldOffset(14)] internal readonly byte TransactionFlag;
@@ -78,6 +80,7 @@ public readonly record struct DbfHeader
     [field: FieldOffset(29)]
     public DbfLanguage Language { get; init; }
 
+    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     [FieldOffset(30)] private readonly ushort _reserved2;
 
     [InlineArray(16)]
@@ -86,5 +89,25 @@ public readonly record struct DbfHeader
     private struct Reserved16
     {
         private byte _e0;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the DbfHeader class using the specified DBF file version, language, and field
+    /// descriptors. This constructor sets up the header information required for a DBF table, including record
+    /// structure and metadata.
+    /// </summary>
+    /// <param name="descriptors">An immutable array of field descriptors that define the schema of the DBF table, including field names, types, and lengths.</param>
+    /// <param name="version">The DBF file format version to use for the header. Determines the structure and interpretation of the header fields.</param>
+    /// <param name="language">The language driver setting for the DBF file, which specifies the character encoding used for text fields.</param>
+    public DbfHeader(ImmutableArray<DbfFieldDescriptor> descriptors, DbfVersion version, DbfLanguage language)
+    {
+        HeaderLength = (ushort)(Size + descriptors.Length * DbfFieldDescriptor.Size + 1);
+        if (version.IsFoxPro()) HeaderLength += 263;
+        Language = language;
+        LastUpdate = DateOnly.FromDateTime(DateTime.Now);
+        RecordCount = 0;
+        RecordLength = (ushort)(1 + descriptors.Sum(static d => d.Length));
+        TableFlags = version.IsFoxPro() ? descriptors.GetTableFlags() : DbfTableFlags.None;
+        Version = version;
     }
 }

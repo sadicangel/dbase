@@ -128,7 +128,7 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
-        var (header, descriptors) = ReadHeader(dbf);
+        var (header, descriptors, backlink) = ReadHeader(dbf);
         return new Dbf(
             dbf,
             in header,
@@ -177,16 +177,7 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
-        var header = new DbfHeader
-        {
-            HeaderLength = (ushort)(DbfHeader.Size + descriptors.Length * DbfFieldDescriptor.Size + 1),
-            Language = language,
-            LastUpdate = DateOnly.FromDateTime(DateTime.Now),
-            RecordCount = 0,
-            RecordLength = (ushort)(1 + descriptors.Sum(static d => d.Length)),
-            TableFlags = descriptors.GetTableFlags(),
-            Version = version,
-        };
+        var header = new DbfHeader(descriptors, version, language);
 
         WriteHeader(dbf, in header, descriptors);
 
@@ -195,6 +186,42 @@ public sealed class Dbf : IDisposable
             in header,
             descriptors,
             memo is not null ? Memo.Create(memo, version) : null);
+    }
+
+    /// <summary>
+    /// Saves the current <see cref="Dbf"/> to the specified file, and it's associated <see cref="DBase.Memo"/> if it exists.
+    /// </summary>
+    /// <remarks>If the current state does not include a memo, only the main file is created. Otherwise, an
+    /// additional memo file is created with an extension determined by the version.</remarks>
+    /// <param name="fileName">The name of the file to which the current state will be saved.</param>
+    public void SaveAs(string fileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        using var dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
+        if (Memo is null)
+        {
+            WriteTo(dbf, null);
+            return;
+        }
+
+        using var memo = new FileStream(Path.ChangeExtension(fileName, Version.IsFoxPro() ? "fpt" : "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
+        WriteTo(dbf, memo);
+    }
+
+    /// <summary>
+    /// Writes the current <see cref="Dbf"/> to the specified output stream, and optionally writes associated
+    /// <see cref="DBase.Memo"/> to a separate stream if provided.
+    /// </summary>
+    /// <param name="dbf">The output stream to which the main data is written. This parameter cannot be null.</param>
+    /// <param name="memo">An optional stream to which memo data is written if both this parameter and the internal memo data are not null.</param>
+    public void WriteTo(Stream dbf, Stream? memo)
+    {
+        ArgumentNullException.ThrowIfNull(dbf);
+        Flush();
+        _dbf.Position = 0;
+        _dbf.CopyTo(dbf);
+        if (Memo is not null && memo is not null)
+            Memo.WriteTo(memo);
     }
 
     /// <summary>
@@ -222,7 +249,7 @@ public sealed class Dbf : IDisposable
         _dbf.Flush();
     }
 
-    internal static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors) ReadHeader(Stream dbf)
+    internal static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, DbcBacklink dbcBackLink) ReadHeader(Stream dbf)
     {
         dbf.Position = 0;
         var version = (DbfVersion)dbf.ReadByte();
@@ -257,7 +284,13 @@ public sealed class Dbf : IDisposable
         if (dbf.ReadByte() is not 0x0D)
             throw new InvalidDataException("Invalid DBF header terminator");
 
-        return (header, builder.ToImmutable());
+        var dbcBackLink = DbcBacklink.Empty;
+        if (header.Version.IsFoxPro())
+        {
+            dbf.ReadExactly(dbcBackLink);
+        }
+
+        return (header, builder.ToImmutable(), dbcBackLink);
 
         static bool TryReadDescriptor<T>(Stream dbf, out T descriptor) where T : unmanaged =>
             dbf.TryRead(out descriptor) && Unsafe.As<T, byte>(ref descriptor) is not 0x0D;
@@ -287,7 +320,6 @@ public sealed class Dbf : IDisposable
                 dbf.WriteByte(0x00);
             }
         }
-
         else
         {
             dbf.Write(header);

@@ -51,7 +51,7 @@ public readonly record struct DbfRecord : IReadOnlyList<DbfField>
         Fields = fields;
     }
 
-    private string GetDebuggerDisplay() => $"{nameof(Count)} = {Count}";
+    private string GetDebuggerDisplay() => $"[{string.Join(", ", Fields.Select(x => x.ToString()))}]";
 
     /// <summary>
     /// Returns an enumerator that iterates through the fields.
