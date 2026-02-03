@@ -84,6 +84,11 @@ public sealed class Dbf : IDisposable
     public Memo? Memo { get; }
 
     /// <summary>
+    /// Gets the backlink information associated with the database connection.
+    /// </summary>
+    public DbcBacklink DbcBacklink { get; }
+
+    /// <summary>
     /// Gets or sets the record at the specified <paramref name="index"/>.
     /// </summary>
     /// <param name="index"></param>
@@ -92,7 +97,7 @@ public sealed class Dbf : IDisposable
     /// </returns>
     public DbfRecord this[int index] => GetRecord(index);
 
-    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo)
+    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo, DbcBacklink dbcBacklink)
     {
         _dbf = dbf;
         _header = header;
@@ -101,6 +106,7 @@ public sealed class Dbf : IDisposable
 
         Encoding = _header.Language.GetEncoding();
         DecimalSeparator = _header.Language.GetDecimalSeparator();
+        DbcBacklink = dbcBacklink;
 
         Memo = memo;
     }
@@ -128,12 +134,13 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
-        var (header, descriptors, backlink) = ReadHeader(dbf);
+        var (header, descriptors, dbcBacklink) = ReadHeader(dbf);
         return new Dbf(
             dbf,
             in header,
             descriptors,
-            memo is not null ? Memo.Open(memo, header.Version) : null);
+            memo is not null ? Memo.Open(memo, header.Version) : null,
+            dbcBacklink);
     }
 
     /// <summary>
@@ -178,14 +185,18 @@ public sealed class Dbf : IDisposable
         ArgumentNullException.ThrowIfNull(dbf);
 
         var header = new DbfHeader(descriptors, version, language);
+        var dbcBacklink = version.IsFoxPro()
+            ? new DbcBacklink(new byte[DbcBacklink.Size])
+            : DbcBacklink.Empty;
 
-        WriteHeader(dbf, in header, descriptors);
+        WriteHeader(dbf, in header, descriptors, dbcBacklink);
 
         return new Dbf(
             dbf,
             in header,
             descriptors,
-            memo is not null ? Memo.Create(memo, version) : null);
+            memo is not null ? Memo.Create(memo, version) : null,
+            dbcBacklink);
     }
 
     /// <summary>
@@ -242,7 +253,7 @@ public sealed class Dbf : IDisposable
         if (_dirty)
         {
             _dirty = false;
-            WriteHeader(_dbf, in _header, Descriptors);
+            WriteHeader(_dbf, in _header, Descriptors, DbcBacklink);
         }
 
         Memo?.Flush();
@@ -287,7 +298,9 @@ public sealed class Dbf : IDisposable
         var dbcBackLink = DbcBacklink.Empty;
         if (header.Version.IsFoxPro())
         {
-            dbf.ReadExactly(dbcBackLink);
+            var rawBackLink = new byte[DbcBacklink.Size];
+            dbf.ReadExactly(rawBackLink);
+            dbcBackLink = new DbcBacklink(rawBackLink);
         }
 
         return (header, builder.ToImmutable(), dbcBackLink);
@@ -296,7 +309,7 @@ public sealed class Dbf : IDisposable
             dbf.TryRead(out descriptor) && Unsafe.As<T, byte>(ref descriptor) is not 0x0D;
     }
 
-    internal static void WriteHeader(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors)
+    internal static void WriteHeader(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, DbcBacklink dbcBacklink)
     {
         if (!Enum.IsDefined(header.Version))
         {
@@ -329,6 +342,11 @@ public sealed class Dbf : IDisposable
             }
 
             dbf.WriteByte(0x0D);
+        }
+
+        if (header.Version.IsFoxPro())
+        {
+            dbf.Write(dbcBacklink.Content.Span);
         }
     }
 
