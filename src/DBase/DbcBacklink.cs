@@ -1,16 +1,19 @@
-﻿using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Text;
 
-namespace DBase.Serialization;
+namespace DBase;
 
 /// <summary>
 /// Represents the Visual FoxPro database container (DBC) backlink area stored in a DBF file header.
 /// </summary>
+/// <param name="Content">
+/// Raw backlink area bytes as stored in the DBF header (typically 263 bytes), preserved as-is.
+/// </param>
 /// <remarks>
 /// <para>
-/// In Visual FoxPro–style DBF files (versions 0x30, 0x31, 0x32), a table may optionally be associated with
-/// a database container (<c>.dbc</c> file). When present, the DBF header reserves a 263-byte <em>backlink</em>
-/// area immediately after the field descriptor terminator (<c>0x0D</c>) and before the first data record.
+/// In Visual FoxPro–style DBF files (versions <c>0x30</c>, <c>0x31</c>, <c>0x32</c>), a table may optionally be
+/// associated with a database container (<c>.dbc</c> file). When present, the DBF header reserves a
+/// 263-byte <em>backlink</em> area immediately after the field descriptor terminator (<c>0x0D</c>) and before
+/// the first data record.
 /// </para>
 /// <para>
 /// The backlink area is FoxPro-specific and not formally specified; it should be treated as an opaque blob.
@@ -18,13 +21,12 @@ namespace DBase.Serialization;
 /// the table name as registered in the database container), but this is not guaranteed for all producers.
 /// </para>
 /// </remarks>
-[InlineArray(263)]
-public struct DbcBacklink
+public readonly record struct DbcBacklink(ReadOnlyMemory<byte> Content)
 {
-    private byte _e0;
+    internal const int Size = 263;
 
     /// <summary>
-    /// Represents an empty backlink is present.
+    /// Represents an empty, 0 byte length backlink area.
     /// </summary>
     public static readonly DbcBacklink Empty = default;
 
@@ -33,7 +35,8 @@ public struct DbcBacklink
     /// </summary>
     /// <remarks>
     /// This value is extracted on a best-effort basis from the backlink data and may be <see langword="null" />
-    /// if the table is not bound to a database container or if the content is not in the expected form.
+    /// if the table is not bound to a database container, the area is empty, or the content is not in the
+    /// expected form.
     /// </remarks>
     public string? DbcPath => GetNullTerminatedStringAtOrDefault(0);
 
@@ -42,13 +45,13 @@ public struct DbcBacklink
     /// </summary>
     /// <remarks>
     /// This value is extracted on a best-effort basis from the backlink data and may be <see langword="null" />
-    /// if the content is not in the expected form.
+    /// if the area is empty or the content is not in the expected form.
     /// </remarks>
     public string? TableName => GetNullTerminatedStringAtOrDefault(1);
 
     private string? GetNullTerminatedStringAtOrDefault(int index)
     {
-        Span<byte> span = this;
+        var span = Content.Span;
         var i = 0;
         using var enumerator = span.Split((byte)0);
         do
