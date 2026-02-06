@@ -2,6 +2,7 @@
 using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
+using Xunit.Sdk;
 
 namespace DBase.Tests;
 
@@ -118,5 +119,44 @@ public abstract class DBaseTest
 
         Assert.Skip($"'{Path.GetFileName(DbfPath)}' does not have a corresponding memo file.");
         return Task.CompletedTask;
+    }
+
+    protected static void AssertBytes(
+        ReadOnlySpan<byte> expected,
+        ReadOnlySpan<byte> actual,
+        Range range,
+        string label,
+        Func<ReadOnlySpan<byte>, object>? format = null,
+        IEqualityComparer<byte[]>? comparer = null)
+    {
+        var expectedSpan = expected[range];
+        var actualSpan = actual[range];
+
+        try
+        {
+            if (comparer is not null)
+            {
+                Assert.Equal(expectedSpan.ToArray(), actualSpan.ToArray(), comparer);
+            }
+            else
+            {
+                Assert.Equal(expectedSpan, actualSpan);
+            }
+        }
+        catch (XunitException ex)
+        {
+            var message = format is not null
+                ? $"""
+                Value '{label}' mismatch ({range.Start.Value}..{range.End.Value}):
+                Expected: {format(expectedSpan)}
+                Actual:   {format(actualSpan)}
+                {ex.Message}
+                """
+                : $"""
+                Value '{label}' mismatch ({range.Start.Value}..{range.End.Value}):
+                {ex.Message}
+                """;
+            throw new XunitException(message);
+        }
     }
 }

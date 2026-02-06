@@ -6,8 +6,12 @@ using DotNext.Buffers;
 namespace DBase;
 
 /// <summary>
-/// Represents a memo file associated with a dBASE file.
+/// Represents a DBT/FPT memo file associated with a DBF table.
 /// </summary>
+/// <remarks>
+/// Memo files are block-addressed. DBF records typically store a block index that points to data in this
+/// file. The concrete on-disk memo format depends on <see cref="DbfVersion"/>.
+/// </remarks>
 public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
 {
     internal const ushort HeaderLengthInDisk = 512;
@@ -34,10 +38,11 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     internal ushort BlockLength { get; }
 
     /// <summary>
-    /// Gets the record at the specified index.
+    /// Gets the memo record stored at the specified block index.
     /// </summary>
-    /// <param name="index">The index of the record.</param>
-    /// <returns>The <see cref="MemoRecord"/> at the specified index.</returns>
+    /// <param name="index">Block index of the memo record.</param>
+    /// <returns>The memo record at <paramref name="index"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> does not reference a readable record.</exception>
     public MemoRecord this[int index] { get => Get(index); }
 
     private Memo(Stream memo, DbfVersion version)
@@ -61,8 +66,8 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// Opens an existing memo file.
     /// </summary>
     /// <param name="fileName">The name of the file to open.</param>
-    /// <param name="version">The version of the dBASE file. The version affects how records are read and written.</param>
-    /// <returns>The opened <see cref="Memo"/> file.</returns>
+    /// <param name="version">DBF version that determines memo header and block encoding rules.</param>
+    /// <returns>An opened <see cref="Memo"/> instance.</returns>
     public static Memo Open(string fileName, DbfVersion version) =>
         Open(new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite), version);
 
@@ -76,10 +81,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// <summary>
     /// Creates a new memo file.
     /// </summary>
-    /// <param name="fileName">The name of the file to open.</param>
-    /// <param name="version">The version of the dBASE file. The version affects how records are read and written.</param>
-    /// <param name="blockLength">The length of each block in the memo file.</param>
-    /// <returns>The opened <see cref="Memo"/> file.</returns>
+    /// <param name="fileName">The name of the file to create.</param>
+    /// <param name="version">DBF version that determines memo header and block encoding rules.</param>
+    /// <param name="blockLength">Size of each memo block, in bytes.</param>
+    /// <returns>A created <see cref="Memo"/> instance.</returns>
     public static Memo Create(string fileName, DbfVersion version, ushort blockLength = HeaderLengthInDisk) =>
         Create(new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite), version, blockLength);
 
@@ -93,9 +98,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     }
 
     /// <summary>
-    /// Saves the current <see cref="Memo"/> to a new file with the specified file name.
+    /// Saves this memo content to a new file path.
     /// </summary>
     /// <param name="fileName">The name of the file to which the data will be saved.</param>
+    /// <exception cref="ArgumentException"><paramref name="fileName"/> is null, empty, or whitespace.</exception>
     public void Save(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
@@ -104,9 +110,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     }
 
     /// <summary>
-    /// Writes the current <see cref="Memo"/> to the specified stream.
+    /// Writes this memo content to the specified stream.
     /// </summary>
-    /// <param name="stream">The stream to which the contents will be written to.</param>
+    /// <param name="stream">Destination stream.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is <see langword="null"/>.</exception>
     public void WriteTo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -176,7 +183,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     }
 
     /// <summary>
-    /// Releases all resources used by the current instance of the <see cref="Memo"/> class.
+    /// Flushes pending header changes and releases underlying stream resources.
     /// </summary>
     public void Dispose()
     {
@@ -185,7 +192,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     }
 
     /// <summary>
-    /// Flushes the memo file to disk.
+    /// Writes pending header metadata and flushes the memo stream.
     /// </summary>
     public void Flush()
     {
@@ -212,16 +219,22 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private static int LenFP(ReadOnlySpan<byte> record) => record.Length + 8;
 
     /// <summary>
-    /// Adds a record to the memo file.
+    /// Appends a memo record to the end of the file.
     /// </summary>
-    /// <param name="record">The record to add.</param>
+    /// <param name="record">Record payload and type to append.</param>
+    /// <remarks>
+    /// This implementation is append-only; random overwrite is not supported.
+    /// </remarks>
     public void Add(MemoRecord record) => _set(NextIndex, record.Type, record.Span);
 
     /// <summary>
-    /// Adds a record to the memo file.
+    /// Appends a typed memo payload to the end of the file.
     /// </summary>
-    /// <param name="type">The type of the record to add.</param>
-    /// <param name="data">The data of the record to add.</param>
+    /// <param name="type">Memo payload type marker.</param>
+    /// <param name="data">Memo payload bytes.</param>
+    /// <remarks>
+    /// This implementation is append-only; random overwrite is not supported.
+    /// </remarks>
     public void Add(MemoRecordType type, ReadOnlySpan<byte> data) => _set(NextIndex, type, data);
 
     internal void SetStreamPositionForIndex(int index) => _memo.Position = index * BlockLength;
@@ -410,9 +423,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     }
 
     /// <summary>
-    /// Returns an enumerator that iterates through the memo records.
+    /// Returns an enumerator that iterates readable memo records in block order.
     /// </summary>
-    /// <returns>An enumerator that can be used to iterate through the memo records.</returns>
+    /// <returns>An enumerator over memo records.</returns>
     public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;

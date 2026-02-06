@@ -1,16 +1,17 @@
 ﻿namespace DBase;
 
 /// <summary>
-/// Describes the byte that represents the status of a record.
+/// Defines the on-disk status marker stored at the beginning of a DBF record.
 /// </summary>
 public enum DbfRecordStatus : byte
 {
     /// <summary>
-    /// Record is valid.
+    /// Active record marker (<c>0x20</c>, ASCII space).
     /// </summary>
     Valid = 0x20,
+
     /// <summary>
-    /// Record is deleted.
+    /// Deleted record marker (<c>0x2A</c>, ASCII <c>*</c>).
     /// </summary>
     Deleted = 0x2A,
 }

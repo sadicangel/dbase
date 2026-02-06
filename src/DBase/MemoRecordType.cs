@@ -1,22 +1,22 @@
 ﻿namespace DBase;
 
 /// <summary>
-/// Represents the type of memo record.
+/// Defines memo-record type markers used by FoxPro-style memo blocks.
 /// </summary>
 public enum MemoRecordType
 {
     /// <summary>
-    /// Used for images, OLE objects (FoxPro)
+    /// Picture/OLE-style binary payload.
     /// </summary>
     Picture = 0x00,
 
     /// <summary>
-    /// Standard text memo (dBASE, FoxPro)
+    /// Standard memo payload.
     /// </summary>
     Memo = 0x01,
 
     /// <summary>
-    /// FoxPro-specific object storage
+    /// FoxPro object payload.
     /// </summary>
     Object = 0x02,
 }

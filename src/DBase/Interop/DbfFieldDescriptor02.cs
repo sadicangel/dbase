@@ -1,11 +1,9 @@
 ﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace DBase.Interop;
 
-/// <summary>
-/// Describes a <see cref="DbfField" />.
-/// </summary>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 internal readonly record struct DbfFieldDescriptor02
@@ -20,25 +18,37 @@ internal readonly record struct DbfFieldDescriptor02
 
     [field: FieldOffset(12)] public byte Length { get; init; }
 
-    [FieldOffset(13)] private readonly short _address; // in memory address.
+    [FieldOffset(13)] internal readonly short Offset;
 
     [field: FieldOffset(15)] public byte Decimal { get; init; }
 
     private string GetDebuggerDisplay() => $"{Name},{(char)Type},{Length},{Decimal}";
 
-    public static implicit operator DbfFieldDescriptor(DbfFieldDescriptor02 descriptor) => new()
+    public static implicit operator DbfFieldDescriptor(DbfFieldDescriptor02 descriptor)
     {
-        Name = descriptor.Name,
-        Type = descriptor.Type,
-        Length = descriptor.Length,
-        Decimal = descriptor.Decimal
-    };
+        var v3 = new DbfFieldDescriptor
+        {
+            Name = descriptor.Name,
+            Type = descriptor.Type,
+            Length = descriptor.Length,
+            Decimal = descriptor.Decimal
+        };
+        Unsafe.AsRef(in v3.Offset) = descriptor.Offset;
 
-    public static implicit operator DbfFieldDescriptor02(DbfFieldDescriptor descriptor) => new()
+        return v3;
+    }
+
+    public static implicit operator DbfFieldDescriptor02(DbfFieldDescriptor descriptor)
     {
-        Name = descriptor.Name,
-        Type = descriptor.Type,
-        Length = descriptor.Length,
-        Decimal = descriptor.Decimal
-    };
+        var v2 = new DbfFieldDescriptor02
+        {
+            Name = descriptor.Name,
+            Type = descriptor.Type,
+            Length = descriptor.Length,
+            Decimal = descriptor.Decimal
+        };
+        Unsafe.AsRef(in v2.Offset) = (short)descriptor.Offset;
+
+        return v2;
+    }
 }

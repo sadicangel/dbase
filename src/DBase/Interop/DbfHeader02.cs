@@ -47,11 +47,21 @@ internal readonly record struct DbfHeader02
         HeaderLength = HeaderLengthInDisk,
     };
 
-    public static implicit operator DbfHeader02(DbfHeader header) => new()
+    public static explicit operator DbfHeader02(DbfHeader header)
     {
-        Version = header.Version,
-        RecordCount = (ushort)header.RecordCount,
-        LastUpdate = header.LastUpdate,
-        RecordLength = header.RecordLength,
-    };
+        if (header.HeaderLength > HeaderLengthInDisk)
+        {
+            throw new ArgumentException(
+                $"Header length {header.HeaderLength} exceeds the dBase II header size of {HeaderLengthInDisk} bytes.",
+                nameof(header));
+        }
+
+        return new DbfHeader02
+        {
+            Version = header.Version,
+            RecordCount = (ushort)header.RecordCount,
+            LastUpdate = header.LastUpdate,
+            RecordLength = header.RecordLength,
+        };
+    }
 }

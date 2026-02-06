@@ -1,19 +1,19 @@
 ﻿namespace DBase;
 
 /// <summary>
-/// Represents a memo record with an associated type.
+/// Represents a single memo payload and its logical type.
 /// </summary>
-/// <param name="Type">Gets the type of the memo record.</param>
-/// <param name="Data">Gets the data of the memo record.</param>
+/// <param name="Type">Logical memo-record type marker.</param>
+/// <param name="Data">Raw memo payload bytes (without format-specific block headers).</param>
 public readonly record struct MemoRecord(MemoRecordType Type, ReadOnlyMemory<byte> Data)
 {
     /// <summary>
-    /// Gets the length of the memo record in bytes.
+    /// Gets the payload length in bytes.
     /// </summary>
     public int Length => Data.Length;
 
     /// <summary>
-    /// Gets the data of the memo record as a span.
+    /// Gets the payload data as a span.
     /// </summary>
     public ReadOnlySpan<byte> Span => Data.Span;
 }

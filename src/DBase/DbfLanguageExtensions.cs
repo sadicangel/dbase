@@ -4,8 +4,11 @@ using System.Text;
 namespace DBase;
 
 /// <summary>
-/// Extensions for <see cref="DbfLanguage" />.
+/// Provides mapping helpers for <see cref="DbfLanguage"/> values.
 /// </summary>
+/// <remarks>
+/// These mappings are used by DBF serializers to determine character encoding and numeric formatting rules.
+/// </remarks>
 public static class DbfLanguageExtensions
 {
     static DbfLanguageExtensions()
@@ -13,13 +16,16 @@ public static class DbfLanguageExtensions
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    /// <param name="language">The language <i>codepage</i>.</param>
+    /// <param name="language">The DBF language-driver marker.</param>
     extension(DbfLanguage language)
     {
         /// <summary>
-        /// Gets the decimal separator <see cref="char" /> for the <see cref="DbfLanguage" />.
+        /// Gets the decimal separator used for numeric text fields for the specified language marker.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The decimal separator character.</returns>
+        /// <exception cref="InvalidEnumArgumentException">
+        /// <paramref name="language"/> is not a supported <see cref="DbfLanguage"/> value.
+        /// </exception>
         public char GetDecimalSeparator() => language switch
         {
             DbfLanguage.Oem or
@@ -51,9 +57,12 @@ public static class DbfLanguageExtensions
         };
 
         /// <summary>
-        /// Gets the <see cref="Encoding"/> associated with the <see cref="DbfLanguage" />.
+        /// Gets the text encoding associated with the specified language marker.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The encoding used to read and write character data.</returns>
+        /// <exception cref="InvalidEnumArgumentException">
+        /// <paramref name="language"/> is not a supported <see cref="DbfLanguage"/> value.
+        /// </exception>
         public Encoding GetEncoding() => language switch
         {
             DbfLanguage.UsMsDos437 => Encoding.GetEncoding(437),

@@ -1,105 +1,104 @@
 ﻿namespace DBase;
 
 /// <summary>
-/// Defines the field type of <see cref="Dbf" />.
+/// Defines the DBF field type code stored in the field descriptor (ASCII type byte).
 /// </summary>
+/// <remarks>
+/// dBASE Level 7 extends the classic dBASE III/IV/5 set, and Visual FoxPro adds additional codes
+/// (for example <c>Y</c>, <c>T</c>, <c>B</c>, <c>I</c>, <c>V</c>, <c>W</c>, <c>P</c>, <c>G</c>).
+/// </remarks>
 public enum DbfFieldType : byte
 {
     /// <summary>
-    /// Automatically incremented <see cref="long" /> values.
+    /// dBASE Level 7 autoincrement (<c>+</c>): a signed 4-byte integer that increments automatically.
     /// </summary>
-    /// <remarks>
-    /// Deleting a row does not change the field values of other rows. Be aware that adding an auto increment field will pack the table.
-    /// </remarks>
     AutoIncrement = (byte)'+',
 
     /// <summary>
-    /// Like <see cref="Memo" /> fields, but not for text processing. In Visual FoxPro, it represents a 64-bit integer.
+    /// dBASE Level 7 binary memo pointer (<c>B</c>): stored as a 10-digit <c>.DBT</c> block number string.
     /// </summary>
+    /// <remarks>
+    /// Visual FoxPro uses <c>B</c> for Double; interpret this code in the context of the DBF version.
+    /// </remarks>
     Binary = (byte)'B',
 
     /// <summary>
-    /// Like <see cref="Memo" /> fields, but optimized for binary data.
+    /// Visual FoxPro BLOB (<c>W</c>): binary data stored in a memo (<c>.FPT</c>) file without code page translation.
     /// </summary>
     Blob = (byte)'W',
 
     /// <summary>
-    /// Any ASCII text (padded with spaces).
+    /// Character text (<c>C</c>): OEM code page characters, space-padded to field width.
     /// </summary>
     Character = (byte)'C',
 
     /// <summary>
-    /// Currency values (stored internally as 8-byte BCD, binary-coded decimal).
+    /// Visual FoxPro currency (<c>Y</c>): stored as an 8-byte binary number.
     /// </summary>
     Currency = (byte)'Y',
 
     /// <summary>
-    /// Numbers and a character to separate month, day, and year (stored internally as 8 digits in yyyyMMdd format).
+    /// Date (<c>D</c>): stored as an 8-byte <c>YYYYMMDD</c> string.
     /// </summary>
     Date = (byte)'D',
 
     /// <summary>
-    /// Date/Time value (stored internally as 8 bytes). The first 4 bytes are a 32-bit little-endian
-    /// integer representation of the Julian date, where Oct. 15, 1582 = 2299161 per www.nr.com/julian.html
-    /// The last 4 bytes are a 32-bit little-endian integer time of day represented as milliseconds since midnight.
+    /// Visual FoxPro DateTime (<c>T</c>): 8-byte date/time value.
     /// </summary>
     DateTime = (byte)'T',
 
     /// <summary>
-    /// <see cref="double" />. Optimized for speed.
+    /// dBASE Level 7 double (<c>O</c>): stored as an 8-byte IEEE double.
     /// </summary>
     Double = (byte)'O',
 
     /// <summary>
-    /// <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c> (right justified, padded with whitespace).
+    /// Float (<c>F</c>): number stored as a right-justified string using <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c>.
     /// </summary>
     Float = (byte)'F',
 
     /// <summary>
-    /// <see cref="int" />. Optimized for speed.
+    /// dBASE long integer (<c>I</c>): signed 4-byte integer.
     /// </summary>
     Int32 = (byte)'I',
 
     /// <summary>
-    /// <c>Y</c>, <c>y</c>, <c>N</c>, <c>n</c>, <c>T</c>, <c>t</c>, <c>F</c>, <c>f</c>, <c>1</c>, <c>0</c> or <c>?</c> (when uninitialized).
+    /// Logical (<c>L</c>): a single byte with <c>T</c>/<c>F</c> (space when uninitialized).
     /// </summary>
-    /// <remarks>
-    /// In some cases, '<c>?</c>' can be replaced with '<c> </c>' (space character <c>0x20</c>).
-    /// </remarks>
     Logical = (byte)'L',
 
     /// <summary>
-    /// Any ASCII text (stored internally as 10 digits representing a .dbt block number, right justified, padded with whitespace).
+    /// Memo (<c>M</c>): stored as a 10-digit <c>.DBT</c> block number string.
     /// </summary>
     Memo = (byte)'M',
 
     /// <summary>
-    /// Used for '_NullFlags' in Visual FoxPro. 
+    /// Visual FoxPro hidden system field for nullability flags (<c>0</c>, typically named <c>_NullFlags</c>).
     /// </summary>
     NullFlags = (byte)'0',
 
     /// <summary>
-    /// <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c> (right justified, padded with whitespace).
+    /// Numeric (<c>N</c>): number stored as a right-justified string using <c>-</c>, <c>.</c>, <c>0</c>-<c>9</c>.
     /// </summary>
     Numeric = (byte)'N',
 
     /// <summary>
-    /// OLE Objects in MS Windows versions.
+    /// OLE object (<c>G</c>): stored as a 10-digit <c>.DBT</c> block number string.
     /// </summary>
     Ole = (byte)'G',
 
     /// <summary>
-    /// Picture in Fox Pro versions.
+    /// Visual FoxPro picture (<c>P</c>).
     /// </summary>
     Picture = (byte)'P',
 
     /// <summary>
-    /// Date/Time stamp, including the Date format plus hours, minutes, and seconds, such as hh:MM:ss.
+    /// dBASE Level 7 timestamp (<c>@</c>): two 32-bit integers (days since 01/01/4713 BC, and milliseconds since midnight).
     /// </summary>
     Timestamp = (byte)'@',
 
     /// <summary>
-    /// Visual Fox Pro varchar or varbinary.
+    /// Visual FoxPro varchar (<c>V</c>): variable-length character data with stored length.
     /// </summary>
     Variant = (byte)'V',
 }

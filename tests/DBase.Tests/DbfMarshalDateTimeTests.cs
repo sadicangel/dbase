@@ -1,4 +1,4 @@
-﻿using DBase.Serialization;
+﻿using DBase.Serialization.Fields;
 
 namespace DBase.Tests;
 
