@@ -24,7 +24,7 @@ public static class DbfLanguageExtensions
         /// </summary>
         /// <returns>The decimal separator character.</returns>
         /// <exception cref="InvalidEnumArgumentException">
-        /// <paramref name="language"/> is not a supported <see cref="DbfLanguage"/> value.
+        /// language is not a supported <see cref="DbfLanguage"/> value.
         /// </exception>
         public char GetDecimalSeparator() => language switch
         {
@@ -61,7 +61,7 @@ public static class DbfLanguageExtensions
         /// </summary>
         /// <returns>The encoding used to read and write character data.</returns>
         /// <exception cref="InvalidEnumArgumentException">
-        /// <paramref name="language"/> is not a supported <see cref="DbfLanguage"/> value.
+        /// language is not a supported <see cref="DbfLanguage"/> value.
         /// </exception>
         public Encoding GetEncoding() => language switch
         {
