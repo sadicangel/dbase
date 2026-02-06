@@ -4,8 +4,12 @@ using System.Runtime.InteropServices;
 namespace DBase;
 
 /// <summary>
-/// Describes a <see cref="DbfField" />.
+/// Describes the schema metadata for a DBF field.
 /// </summary>
+/// <remarks>
+/// Instances map to the 32-byte field descriptor entry stored in a DBF header. The descriptor defines
+/// the field name, type, length, decimal count, and flags used when reading and writing records.
+/// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 public readonly record struct DbfFieldDescriptor
@@ -13,7 +17,7 @@ public readonly record struct DbfFieldDescriptor
     internal const int Size = 32;
 
     /// <summary>
-    /// Gets the field name in ASCII.
+    /// Gets the field name (DBF ASCII name, typically up to 10 characters).
     /// </summary>
     [field: FieldOffset(0)]
     public DbfFieldName Name { get; init; }
@@ -21,30 +25,32 @@ public readonly record struct DbfFieldDescriptor
     [FieldOffset(10)] private readonly byte _zero; // '\0'
 
     /// <summary>
-    /// Gets the type of the field.
+    /// Gets the DBF field type code.
     /// </summary>
     [field: FieldOffset(11)]
     public DbfFieldType Type { get; init; }
 
-    /// <summary>
-    /// Gets the offset of the field in the record.
-    /// </summary>
     [FieldOffset(12)] internal readonly int Offset;
 
     /// <summary>
-    /// Gets or sets the length of the field in binary (maximum 254).
+    /// Gets the field length in bytes (maximum 254).
     /// </summary>
     [field: FieldOffset(16)]
     public byte Length { get; init; }
 
     /// <summary>
-    /// Gets the field decimal count in binary.
+    /// Gets the byte range within a record for this field.
+    /// </summary>
+    public Range Range => Offset..(Offset + Length);
+
+    /// <summary>
+    /// Gets the number of decimal digits for numeric fields.
     /// </summary>
     [field: FieldOffset(17)]
     public byte Decimal { get; init; }
 
     /// <summary>
-    /// Gets the field flags describing special attributes of the field.
+    /// Gets the field flags describing special attributes (nullable, auto-increment, binary, etc.).
     /// </summary>
     [field: FieldOffset(18)]
     public DbfFieldFlags Flags { get; init; }
@@ -66,7 +72,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.AutoIncrement" />.
+    /// Creates a new auto-increment field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -84,7 +90,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Binary" />.
+    /// Creates a new binary field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (number of bytes).
@@ -106,7 +112,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Blob" />.
+    /// Creates a new blob field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -123,7 +129,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Character" />.
+    /// Creates a new character field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The <paramref name="length"/> of the field (number of ASCII characters).</param>
@@ -141,7 +147,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Currency" />.
+    /// Creates a new currency field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -158,7 +164,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Date" />.
+    /// Creates a new date field descriptor (YYYYMMDD).
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -175,7 +181,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.DateTime" />.
+    /// Creates a new datetime field descriptor (Julian day + milliseconds).
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -192,7 +198,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Double" />.
+    /// Creates a new double-precision binary field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -209,7 +215,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Float" />.
+    /// Creates a new floating-point numeric field descriptor (stored as text).
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (total number of digits).</param>
@@ -232,7 +238,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Int32" />.
+    /// Creates a new 32-bit integer field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -249,7 +255,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Logical" />.
+    /// Creates a new logical (boolean) field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -266,7 +272,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Memo" />.
+    /// Creates a new memo field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (number of bytes).
@@ -286,7 +292,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.NullFlags" />.
+    /// Creates a new null-flags field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (number of bytes).
@@ -305,7 +311,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Numeric" />.
+    /// Creates a new numeric field descriptor (stored as text).
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (total number of digits).</param>
@@ -328,7 +334,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Ole" />.
+    /// Creates a new OLE field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (number of bytes).
@@ -348,7 +354,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Picture" />.
+    /// Creates a new picture field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (number of bytes).
@@ -368,7 +374,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Timestamp" />.
+    /// Creates a new timestamp field descriptor (Julian day + milliseconds).
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
@@ -385,7 +391,7 @@ public readonly record struct DbfFieldDescriptor
     }
 
     /// <summary>
-    /// Creates a new <see cref="DbfFieldDescriptor" /> of type <see cref="DbfFieldType.Variant" />.
+    /// Creates a new variant field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
     /// <param name="length">The length of the field (number of bytes).</param>

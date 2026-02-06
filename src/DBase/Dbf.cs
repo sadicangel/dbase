@@ -9,9 +9,12 @@ using DotNext.Buffers;
 namespace DBase;
 
 /// <summary>
-/// Represents a dBASE database file.
+/// Represents an open DBF table and optional memo file.
 /// </summary>
-/// <remarks>This class cannot be inherited.</remarks>
+/// <remarks>
+/// This type provides record-level read and write operations for DBF data and keeps the file header
+/// synchronized when record count changes.
+/// </remarks>
 public sealed class Dbf : IDisposable
 {
     private const int StackallocThreshold = 256;
@@ -21,42 +24,36 @@ public sealed class Dbf : IDisposable
     private bool _dirty;
 
     /// <summary>
-    /// Gets the version of the dBASE database file.
+    /// Gets the DBF format version stored in the file header.
     /// </summary>
     public DbfVersion Version => _header.Version;
 
     /// <summary>
-    /// Gets the language of the dBASE database file.
+    /// Gets the language/code-page marker stored in the file header.
     /// </summary>
     public DbfLanguage Language => _header.Language;
 
     /// <summary>
-    /// Gets the encoding used to read and write text.
+    /// Gets the text encoding derived from <see cref="Language"/> and used for character fields.
     /// </summary>
     public Encoding Encoding { get; }
 
     /// <summary>
-    /// Gets the decimal separator used to read and write numeric values.
+    /// Gets the decimal separator used when parsing and formatting numeric values.
     /// </summary>
     public char DecimalSeparator { get; }
 
     /// <summary>
-    /// Gets or sets the date of the last update to the database.
+    /// Gets the last-update date stored in the DBF header.
     /// </summary>
     public DateOnly LastUpdate => _header.LastUpdate;
 
-    /// <summary>
-    /// Gets the length of the header in bytes.
-    /// </summary>
-    public int HeaderLength => _header.HeaderLength;
+    internal int HeaderLength => _header.HeaderLength;
+
+    internal int RecordLength => _header.RecordLength;
 
     /// <summary>
-    /// Gets the length of each record in bytes.
-    /// </summary>
-    public int RecordLength => _header.RecordLength;
-
-    /// <summary>
-    /// Gets the number of records in the database.
+    /// Gets the number of records tracked by the DBF header.
     /// </summary>
     public int RecordCount
     {
@@ -74,27 +71,28 @@ public sealed class Dbf : IDisposable
     }
 
     /// <summary>
-    /// Gets the field descriptors that define the record structure.
+    /// Gets the field descriptors that define the table schema.
     /// </summary>
     public ImmutableArray<DbfFieldDescriptor> Descriptors { get; }
 
     /// <summary>
-    /// Gets the memo file associated with this database file.
+    /// Gets the memo storage associated with this table, if available.
     /// </summary>
     public Memo? Memo { get; }
 
     /// <summary>
-    /// Gets the backlink information associated with the database connection.
+    /// Gets the Visual FoxPro DBC backlink area from the header.
     /// </summary>
     public DbcBacklink DbcBacklink { get; }
 
     /// <summary>
-    /// Gets or sets the record at the specified <paramref name="index"/>.
+    /// Gets the record at the specified <paramref name="index"/>.
     /// </summary>
-    /// <param name="index"></param>
-    /// <returns>
-    /// The <see cref="DbfRecord"/> at the specified index.
-    /// </returns>
+    /// <param name="index">Zero-based record index.</param>
+    /// <returns>The record at the specified index.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is less than 0 or greater than or equal to <see cref="RecordCount"/>.
+    /// </exception>
     public DbfRecord this[int index] => GetRecord(index);
 
     private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo, DbcBacklink dbcBacklink)
@@ -115,7 +113,10 @@ public sealed class Dbf : IDisposable
     /// Opens an existing dBASE database file.
     /// </summary>
     /// <param name="fileName">The name of the file to open.</param>
-    /// <returns></returns>
+    /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
+    /// <remarks>
+    /// This method attempts to open a sibling memo file with <c>.dbt</c> extension first, then <c>.fpt</c>.
+    /// </remarks>
     public static Dbf Open(string fileName)
     {
         var dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
@@ -150,7 +151,11 @@ public sealed class Dbf : IDisposable
     /// <param name="descriptors">The field descriptors that define the record structure.</param>
     /// <param name="version">The version of the dBASE database file.</param>
     /// <param name="language">The language of the dBASE database file.</param>
-    /// <returns></returns>
+    /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
+    /// <remarks>
+    /// A memo file is created automatically when the schema contains memo fields. FoxPro versions use
+    /// <c>.fpt</c>; other versions use <c>.dbt</c>.
+    /// </remarks>
     public static Dbf Create(
         string fileName,
         ImmutableArray<DbfFieldDescriptor> descriptors,
@@ -200,11 +205,12 @@ public sealed class Dbf : IDisposable
     }
 
     /// <summary>
-    /// Saves the current <see cref="Dbf"/> to the specified file, and it's associated <see cref="DBase.Memo"/> if it exists.
+    /// Saves this table to a new file path and writes memo data when present.
     /// </summary>
     /// <remarks>If the current state does not include a memo, only the main file is created. Otherwise, an
     /// additional memo file is created with an extension determined by the version.</remarks>
     /// <param name="fileName">The name of the file to which the current state will be saved.</param>
+    /// <exception cref="ArgumentException"><paramref name="fileName"/> is null, empty, or whitespace.</exception>
     public void SaveAs(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
@@ -225,6 +231,7 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="dbf">The output stream to which the main data is written. This parameter cannot be null.</param>
     /// <param name="memo">An optional stream to which memo data is written if both this parameter and the internal memo data are not null.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="dbf"/> is <see langword="null"/>.</exception>
     public void WriteTo(Stream dbf, Stream? memo)
     {
         ArgumentNullException.ThrowIfNull(dbf);
@@ -236,7 +243,7 @@ public sealed class Dbf : IDisposable
     }
 
     /// <summary>
-    /// Closes the database file and releases any resources associated with it.
+    /// Flushes pending changes and releases all file resources held by this instance.
     /// </summary>
     public void Dispose()
     {
@@ -246,7 +253,7 @@ public sealed class Dbf : IDisposable
     }
 
     /// <summary>
-    /// Flushes the database file to disk.
+    /// Writes header updates and flushes DBF and memo streams.
     /// </summary>
     public void Flush()
     {
@@ -272,7 +279,7 @@ public sealed class Dbf : IDisposable
         }
 
         var header = version is DbfVersion.DBase02
-            ? (DbfHeader)dbf.Read<DbfHeader02>()
+            ? dbf.Read<DbfHeader02>()
             : dbf.Read<DbfHeader>();
 
         var builder = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(initialCapacity: 8);
@@ -355,6 +362,9 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="index">The zero-based index of the record to get.</param>
     /// <returns>The <see cref="DbfRecord"/> at the specified index.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is less than 0 or greater than or equal to <see cref="RecordCount"/>.
+    /// </exception>
     public DbfRecord GetRecord(int index) => ReadRecord<DbfRecord>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
@@ -362,20 +372,23 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <param name="index">The zero-based index of the record to get.</param>
-    /// <returns></returns>
+    /// <returns>The deserialized record value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is less than 0 or greater than or equal to <see cref="RecordCount"/>.
+    /// </exception>
     public T GetRecord<T>(int index) => ReadRecord<T>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
     /// Enumerates all records in the database.
     /// </summary>
-    /// <returns>The sequence of records in the database.</returns>
+    /// <returns>A lazy sequence that yields records in file order.</returns>
     public IEnumerable<DbfRecord> EnumerateRecords() => EnumerateRecords<DbfRecord>();
 
     /// <summary>
     /// Enumerates all records in the database.
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
-    /// <returns>The sequence of records in the database.</returns>
+    /// <returns>A lazy sequence that yields records in file order.</returns>
     public IEnumerable<T> EnumerateRecords<T>()
     {
         var index = 0;
@@ -386,13 +399,13 @@ public sealed class Dbf : IDisposable
     }
 
     /// <summary>
-    /// Adds a new record to the database.
+    /// Appends a record to the end of the table.
     /// </summary>
     /// <param name="record">The record to add.</param>
     public void Add(DbfRecord record) => WriteRecord(RecordCount, record);
 
     /// <summary>
-    /// Adds a new record to the database.
+    /// Appends a typed record value to the end of the table.
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <param name="record">The record to add.</param>

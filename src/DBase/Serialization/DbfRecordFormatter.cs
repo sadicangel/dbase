@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using DBase.Serialization.Fields;
 
 namespace DBase.Serialization;
 

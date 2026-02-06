@@ -1,6 +1,8 @@
-﻿using System.Text;
+﻿using System.Buffers.Binary;
+using System.Text;
 using CsvHelper;
-using Xunit.Sdk;
+using DBase.Interop;
+using DBase.Interop.Equality;
 
 namespace DBase.Tests;
 
@@ -58,10 +60,20 @@ public abstract class DBaseTest<T> : DBaseTest
         return Encoding.UTF8.GetString(output.ToArray());
     }
 
-    [Fact]
-    public void RoundtripHeader()
+    private readonly ref struct ReadWriteReturnResult(ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual)
     {
-        using var source = Dbf.Open(DbfPath);
+        public ReadOnlySpan<byte> Expected { get; } = expected;
+        public ReadOnlySpan<byte> Actual { get; } = actual;
+
+        public void Deconstruct(out ReadOnlySpan<byte> expected, out ReadOnlySpan<byte> actual)
+        {
+            expected = Expected;
+            actual = Actual;
+        }
+    }
+
+    private static ReadWriteReturnResult ReadWriteReturnTyped(Dbf source)
+    {
         using var oldDbf = new MemoryStream();
         using var oldMemo = new MemoryStream();
         source.WriteTo(oldDbf, oldMemo);
@@ -83,23 +95,31 @@ public abstract class DBaseTest<T> : DBaseTest
         var expected = oldDbf.ToArray().AsSpan();
         var actual = newDbf.ToArray().AsSpan();
 
-        var version = source.Version;
-        if (version is DbfVersion.DBase02)
+        return new ReadWriteReturnResult(expected, actual);
+    }
+
+    [Fact]
+    public void RoundtripHeader()
+    {
+        using var source = Dbf.Open(DbfPath);
+        var (expected, actual) = ReadWriteReturnTyped(source);
+
+        if (source.Version is DbfVersion.DBase02)
         {
-            AssertBytes(expected, actual, 0..1, "version");
-            AssertBytes(expected, actual, 1..3, "record count");
-            // AssertBytes(expected, actual, 3..6, "last update");
-            AssertBytes(expected, actual, 6..8, "record length");
+            AssertBytes(expected, actual, 0..1, "version", static span => (DbfVersion)span[0]);
+            AssertBytes(expected, actual, 1..3, "record count", static span => BinaryPrimitives.ReadUInt16LittleEndian(span));
+            //AssertBytes(expected, actual, 3..6, "last update");
+            AssertBytes(expected, actual, 6..8, "record length", static span => BinaryPrimitives.ReadUInt16LittleEndian(span));
         }
         else
         {
-            AssertBytes(expected, actual, 0..1, "version");
-            // AssertBytes(expected, actual, 1..4, "last update");
-            AssertBytes(expected, actual, 4..8, "record count");
-            AssertBytes(expected, actual, 8..10, "header length");
-            AssertBytes(expected, actual, 10..12, "record length");
-            AssertBytes(expected, actual, 28..29, "flags", GetTableFlagsComparer());
-            AssertBytes(expected, actual, 29..30, "language");
+            AssertBytes(expected, actual, 0..1, "version", static span => (DbfVersion)span[0]);
+            //AssertBytes(expected, actual, 1..4, "last update");
+            AssertBytes(expected, actual, 4..8, "record count", static span => BinaryPrimitives.ReadUInt32LittleEndian(span));
+            AssertBytes(expected, actual, 8..10, "header length", static span => BinaryPrimitives.ReadUInt16LittleEndian(span));
+            AssertBytes(expected, actual, 10..12, "record length", static span => BinaryPrimitives.ReadUInt16LittleEndian(span));
+            AssertBytes(expected, actual, 28..29, "flags", static span => (DbfTableFlags)span[0], GetTableFlagsComparer());
+            AssertBytes(expected, actual, 29..30, "language", static span => (DbfLanguage)span[0]);
         }
 
         return;
@@ -119,40 +139,75 @@ public abstract class DBaseTest<T> : DBaseTest
             });
     }
 
-    private static void AssertBytes(ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual, Range range, string label, IEqualityComparer<byte[]>? comparer = null)
+    [Fact]
+    public void RoundtripDescriptors()
     {
-        try
-        {
-            if (comparer is not null)
-            {
-                Assert.Equal(expected[range].ToArray(), actual[range].ToArray(), comparer);
-            }
-            else
-            {
-                Assert.Equal(expected[range], actual[range]);
-            }
-        }
-        catch (XunitException ex)
-        {
-            throw new XunitException($"Value '{label}' mismatch ({range.Start.Value}..{range.End.Value}):\n{ex.Message}");
-        }
-    }
+        using var source = Dbf.Open(DbfPath);
+        var (expected, actual) = ReadWriteReturnTyped(source);
 
-    private static int AssertEqualDescriptors(DbfVersion version, ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual)
-    {
-        if (version is DbfVersion.DBase02)
+        if (source.Version is DbfVersion.DBase02)
         {
-            Assert.Equal(expected[0..1], actual[0..1]); // Version
-            Assert.Equal(expected[1..3], actual[1..3]); // Record count
-            if (expected[3..6] is not [0, 0, 0])
-                Assert.Equal(expected[3..6], actual[3..6]); // Last update
-            Assert.Equal(expected[6..8], actual[6..8]); // Record length
+            expected = expected[DbfHeader02.Size..];
+            actual = actual[DbfHeader02.Size..];
+            while (expected[0] != 0x0D)
+            {
+                AssertBytes(expected, actual, 0..11, "name", static span => Encoding.UTF8.GetString(span));
+                AssertBytes(expected, actual, 11..12, "data type", static span => (DbfFieldType)span[0]);
+                AssertBytes(expected, actual, 12..13, "length");
+                //AssertBytes(expected, actual, 13..15, "offset", static span => BinaryPrimitives.ReadUInt16LittleEndian(span));
+                AssertBytes(expected, actual, 15..16, "decimal");
 
-            return 8;
+                expected = expected[DbfFieldDescriptor02.Size..];
+                actual = actual[DbfFieldDescriptor02.Size..];
+            }
         }
         else
         {
-            return 32;
+            expected = expected[DbfHeader.Size..];
+            actual = actual[DbfHeader.Size..];
+            while (expected[0] != 0x0D)
+            {
+                AssertBytes(expected, actual, 0..11, "name", static span => Encoding.UTF8.GetString(span));
+                AssertBytes(expected, actual, 11..12, "data type", static span => (DbfFieldType)span[0]);
+                //AssertBytes(expected, actual, 12..16, "offset", static span => BinaryPrimitives.ReadUInt32LittleEndian(span));
+                AssertBytes(expected, actual, 16..17, "length");
+                AssertBytes(expected, actual, 17..18, "decimal");
+
+                expected = expected[DbfFieldDescriptor.Size..];
+                actual = actual[DbfFieldDescriptor.Size..];
+            }
         }
+    }
+
+    [Fact]
+    public void RoundtripRecords()
+    {
+        using var source = Dbf.Open(DbfPath);
+        var (expected, actual) = ReadWriteReturnTyped(source);
+
+        expected = expected[source.HeaderLength..];
+        actual = actual[source.HeaderLength..];
+
+        var recordNumber = 0;
+        var encoding = source.Encoding;
+        while (recordNumber < source.RecordCount)
+        {
+            //AssertBytes(expected, actual, 0..1, $"record: {recordNumber}: 'status'", static span => (DbfRecordStatus)span[0]);
+            foreach (var (descriptor, comparer) in source.Descriptors.Zip(source.Descriptors.Select(d => DbfFieldEqualityComparer.Create(d, encoding))))
+            {
+                AssertBytes(
+                    expected,
+                    actual,
+                    descriptor.Range,
+                    $"record: {recordNumber}: '{descriptor.Name}'",
+                    comparer: comparer);
+            }
+
+            expected = expected[source.RecordLength..];
+            actual = actual[source.RecordLength..];
+            recordNumber++;
+        }
+
+        return;
     }
 }

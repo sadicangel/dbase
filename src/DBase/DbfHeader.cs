@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using DBase.Interop;
 
 namespace DBase;
 
@@ -101,7 +102,9 @@ public readonly record struct DbfHeader
     /// <param name="language">The language driver setting for the DBF file, which specifies the character encoding used for text fields.</param>
     public DbfHeader(ImmutableArray<DbfFieldDescriptor> descriptors, DbfVersion version, DbfLanguage language)
     {
-        HeaderLength = (ushort)(Size + descriptors.Length * DbfFieldDescriptor.Size + 1);
+        HeaderLength = version is DbfVersion.DBase02
+            ? (ushort)DbfHeader02.HeaderLengthInDisk
+            : (ushort)(Size + descriptors.Length * DbfFieldDescriptor.Size + 1);
         if (version.IsFoxPro()) HeaderLength += 263;
         Language = language;
         LastUpdate = DateOnly.FromDateTime(DateTime.Now);

@@ -1,8 +1,11 @@
 ﻿namespace DBase;
 
 /// <summary>
-/// Describes the flags of a dBASE table.
+/// Defines table-level attribute bits stored in the DBF header.
 /// </summary>
+/// <remarks>
+/// Values map to the table-flags byte and may be combined bitwise.
+/// </remarks>
 [Flags]
 public enum DbfTableFlags : byte
 {
@@ -17,14 +20,12 @@ public enum DbfTableFlags : byte
     HasStructuralCdx = 0x01,
 
     /// <summary>
-    /// Indicates the presence of memo fields in the table.
-    /// Memo fields are used to store large text or binary data.
+    /// Indicates the table contains at least one memo-capable field.
     /// </summary>
     HasMemoField = 0x02,
 
     /// <summary>
-    /// Indicates that the table is part of a database container (DBC).
-    /// A DBC contains metadata about the database, such as table definitions and relationships.
+    /// Indicates the table is associated with a database container (DBC).
     /// </summary>
     IsDbc = 0x04
 }

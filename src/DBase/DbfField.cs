@@ -4,11 +4,13 @@ using System.Diagnostics.CodeAnalysis;
 namespace DBase;
 
 /// <summary>
-/// Represents a field of a <see cref="IEquatable{T}" />.
+/// Represents a value in a DBF record field.
 /// </summary>
 /// <seealso cref="DbfFieldDescriptor" />
 /// <remarks>
-/// The field is defined by a <see cref="DbfRecord" />.
+/// A <see cref="DbfField" /> is a lightweight wrapper around the raw value read from or written to a
+/// <see cref="DbfRecord" />. The value is stored as <see cref="object" /> and may be <see langword="null" />
+/// when the underlying field is empty or null.
 /// </remarks>
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 public readonly struct DbfField : IEquatable<DbfField>
@@ -16,7 +18,7 @@ public readonly struct DbfField : IEquatable<DbfField>
     private readonly object? _value;
 
     /// <summary>
-    /// Gets the value of the field.
+    /// Gets the raw value of the field.
     /// </summary>
     public object? Value => _value;
 
@@ -29,7 +31,7 @@ public readonly struct DbfField : IEquatable<DbfField>
     private DbfField(object? value) => _value = value;
 
     /// <summary>
-    /// Determines whether this instance is of type <typeparamref name="T"/>.
+    /// Determines whether this instance stores a value of the exact type <typeparamref name="T"/>.
     /// </summary>
     /// <typeparam name="T">Type to check.</typeparam>
     /// <returns>
@@ -39,10 +41,12 @@ public readonly struct DbfField : IEquatable<DbfField>
     public bool IsType<T>() => _value is not null && typeof(T) == _value.GetType();
 
     /// <summary>
-    /// Gets the value of the field as type <typeparamref name="T"/> or <see langword="null" /> if the field is <see langword="null" />.
+    /// Gets the value of the field as <typeparamref name="T"/>.
     /// </summary>
-    /// <typeparam name="T">The type to get the value as.</typeparam>
-    /// <returns>The value of the field as type <typeparamref name="T"/> or <see langword="null" /> if the field is <see langword="null" />.</returns>
+    /// <typeparam name="T">The expected value type.</typeparam>
+    /// <returns>
+    /// The stored value when it is of type <typeparamref name="T"/>; otherwise <see langword="default" />.
+    /// </returns>
     public T? GetValue<T>() => _value is T value ? value : default;
 
     /// <summary>
@@ -53,6 +57,7 @@ public readonly struct DbfField : IEquatable<DbfField>
     /// <summary>
     /// Gets the string representation of the field using the specified format provider.
     /// </summary>
+    /// <param name="provider">An optional format provider.</param>
     public string ToString(IFormatProvider? provider) => string.Format(provider, "{0}", _value);
 
     private string GetDebuggerDisplay() => ToString();
