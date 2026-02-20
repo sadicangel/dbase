@@ -1,13 +1,10 @@
 ﻿using System.Text;
 
-namespace DBase.Interop.Equality;
+namespace DBase.Tests.Helpers;
 
-internal abstract class DbfFieldEqualityComparer : IEqualityComparer<byte[]>
+internal static class DbfFieldEqualityComparerExtensions
 {
-    public abstract bool Equals(byte[]? x, byte[]? y);
-    public abstract int GetHashCode(byte[]? obj);
-
-    public static IEqualityComparer<byte[]> Create(DbfFieldDescriptor descriptor, Encoding encoding) => descriptor.Type switch
+    public static IEqualityComparer<byte[]> GetRawEqualityComparer(this DbfFieldDescriptor descriptor, Encoding encoding) => descriptor.Type switch
     {
         DbfFieldType.AutoIncrement => BinaryEqualityComparer.Instance,
         DbfFieldType.Binary => BinaryEqualityComparer.Instance,
