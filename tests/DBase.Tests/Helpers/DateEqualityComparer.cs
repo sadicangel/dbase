@@ -1,15 +1,15 @@
 ﻿using System.Text;
 using DBase.Serialization.Fields;
 
-namespace DBase.Interop.Equality;
+namespace DBase.Tests.Helpers;
 
-internal sealed class DateEqualityComparer : DbfFieldEqualityComparer
+internal sealed class DateEqualityComparer : IEqualityComparer<byte[]>
 {
     public static DateEqualityComparer Instance => field ??= new DateEqualityComparer();
 
-    public override bool Equals(byte[]? x, byte[]? y) =>
+    public bool Equals(byte[]? x, byte[]? y) =>
         DbfFieldDateFormatter.ReadRaw(x, Encoding.UTF8) == DbfFieldDateFormatter.ReadRaw(y, Encoding.UTF8);
 
-    public override int GetHashCode(byte[]? obj) =>
+    public int GetHashCode(byte[]? obj) =>
         DbfFieldDateFormatter.ReadRaw(obj, Encoding.UTF8).GetHashCode();
 }

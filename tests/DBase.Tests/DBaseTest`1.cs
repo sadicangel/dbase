@@ -2,7 +2,7 @@
 using System.Text;
 using CsvHelper;
 using DBase.Interop;
-using DBase.Interop.Equality;
+using DBase.Tests.Helpers;
 
 namespace DBase.Tests;
 
@@ -193,7 +193,7 @@ public abstract class DBaseTest<T> : DBaseTest
         while (recordNumber < source.RecordCount)
         {
             //AssertBytes(expected, actual, 0..1, $"record: {recordNumber}: 'status'", static span => (DbfRecordStatus)span[0]);
-            foreach (var (descriptor, comparer) in source.Descriptors.Zip(source.Descriptors.Select(d => DbfFieldEqualityComparer.Create(d, encoding))))
+            foreach (var (descriptor, comparer) in source.Descriptors.Zip(source.Descriptors.Select(d => d.GetRawEqualityComparer(encoding))))
             {
                 AssertBytes(
                     expected,
@@ -207,7 +207,5 @@ public abstract class DBaseTest<T> : DBaseTest
             actual = actual[source.RecordLength..];
             recordNumber++;
         }
-
-        return;
     }
 }

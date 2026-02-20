@@ -1,10 +1,10 @@
-﻿namespace DBase.Interop.Equality;
+﻿namespace DBase.Tests.Helpers;
 
-internal sealed class BinaryEqualityComparer : DbfFieldEqualityComparer
+internal sealed class BinaryEqualityComparer : IEqualityComparer<byte[]>
 {
     public static BinaryEqualityComparer Instance => field ??= new BinaryEqualityComparer();
 
-    public override bool Equals(byte[]? x, byte[]? y)
+    public bool Equals(byte[]? x, byte[]? y)
     {
         if (x is null) return y is null;
         if (y is null) return false;
@@ -13,5 +13,5 @@ internal sealed class BinaryEqualityComparer : DbfFieldEqualityComparer
         return x.SequenceEqual(y);
     }
 
-    public override int GetHashCode(byte[]? obj) => obj?.GetHashCode() ?? 0;
+    public int GetHashCode(byte[]? obj) => obj?.GetHashCode() ?? 0;
 }
