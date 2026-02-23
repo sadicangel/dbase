@@ -9,6 +9,9 @@ namespace DBase;
 /// <summary>
 /// Represents the header of a dBASE file.
 /// </summary>
+/// <remarks>
+/// This type maps to the fixed 32-byte DBF header structure used by dBASE III+ style files.
+/// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
 public readonly record struct DbfHeader
 {
@@ -27,6 +30,9 @@ public readonly record struct DbfHeader
     /// <summary>
     /// Gets or sets the date of the last update.
     /// </summary>
+    /// <remarks>
+    /// On read, month/day values are clamped to valid calendar ranges to tolerate malformed header bytes.
+    /// </remarks>
     public DateOnly LastUpdate
     {
         get
@@ -93,13 +99,16 @@ public readonly record struct DbfHeader
     }
 
     /// <summary>
-    /// Initializes a new instance of the DbfHeader class using the specified DBF file version, language, and field
-    /// descriptors. This constructor sets up the header information required for a DBF table, including record
-    /// structure and metadata.
+    /// Initializes a header from table schema and format metadata.
     /// </summary>
-    /// <param name="descriptors">An immutable array of field descriptors that define the schema of the DBF table, including field names, types, and lengths.</param>
-    /// <param name="version">The DBF file format version to use for the header. Determines the structure and interpretation of the header fields.</param>
-    /// <param name="language">The language driver setting for the DBF file, which specifies the character encoding used for text fields.</param>
+    /// <param name="descriptors">Field descriptors that define record layout and per-field storage widths.</param>
+    /// <param name="version">DBF version marker used to derive header layout details.</param>
+    /// <param name="language">Language driver marker stored in the header.</param>
+    /// <remarks>
+    /// <see cref="HeaderLength"/> includes the field-descriptor list and the <c>0x0D</c> terminator byte.
+    /// For FoxPro variants, the constructor also reserves the 263-byte backlink area.
+    /// <see cref="RecordLength"/> includes the leading one-byte delete flag.
+    /// </remarks>
     public DbfHeader(ImmutableArray<DbfFieldDescriptor> descriptors, DbfVersion version, DbfLanguage language)
     {
         HeaderLength = version is DbfVersion.DBase02

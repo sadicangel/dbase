@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Interop;
@@ -55,6 +56,9 @@ public sealed class Dbf : IDisposable
     /// <summary>
     /// Gets the number of records tracked by the DBF header.
     /// </summary>
+    /// <remarks>
+    /// This count includes records marked as deleted in the on-disk delete-flag byte.
+    /// </remarks>
     public int RecordCount
     {
         get => (int)_header.RecordCount;
@@ -93,6 +97,9 @@ public sealed class Dbf : IDisposable
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="index"/> is less than 0 or greater than or equal to <see cref="RecordCount"/>.
     /// </exception>
+    /// <remarks>
+    /// This indexer is positional and does not skip records marked as deleted.
+    /// </remarks>
     public DbfRecord this[int index] => GetRecord(index);
 
     private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo, DbcBacklink dbcBacklink)
@@ -180,6 +187,29 @@ public sealed class Dbf : IDisposable
         return Create(dbf, descriptors, memo, version, language);
     }
 
+    /// <summary>
+    /// Creates a new dBASE database file using field descriptors inferred from <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The record type used to derive the table schema.</typeparam>
+    /// <param name="fileName">The name of the file to create.</param>
+    /// <param name="version">The version of the dBASE database file.</param>
+    /// <param name="language">The language/code-page marker written to the DBF header.</param>
+    /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
+    public static Dbf Create<T>(
+        string fileName,
+        DbfVersion version = DbfVersion.DBase03,
+        DbfLanguage language = DbfLanguage.Ansi)
+    {
+        var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var descriptors = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(properties.Length);
+        foreach (var property in properties)
+        {
+            descriptors.Add(DbfFieldDescriptor.FromProperty(property, version));
+        }
+
+        return Create(fileName, descriptors.MoveToImmutable(), version, language);
+    }
+
     internal static Dbf Create(
         Stream dbf,
         ImmutableArray<DbfFieldDescriptor> descriptors,
@@ -232,6 +262,10 @@ public sealed class Dbf : IDisposable
     /// <param name="dbf">The output stream to which the main data is written. This parameter cannot be null.</param>
     /// <param name="memo">An optional stream to which memo data is written if both this parameter and the internal memo data are not null.</param>
     /// <exception cref="ArgumentNullException"><paramref name="dbf"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// The DBF stream always receives a full file copy. Memo data is only copied when this instance has a
+    /// memo file and <paramref name="memo"/> is provided.
+    /// </remarks>
     public void WriteTo(Stream dbf, Stream? memo)
     {
         ArgumentNullException.ThrowIfNull(dbf);
@@ -365,6 +399,9 @@ public sealed class Dbf : IDisposable
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="index"/> is less than 0 or greater than or equal to <see cref="RecordCount"/>.
     /// </exception>
+    /// <remarks>
+    /// This method returns records by physical position and does not skip deleted rows.
+    /// </remarks>
     public DbfRecord GetRecord(int index) => ReadRecord<DbfRecord>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
@@ -376,12 +413,19 @@ public sealed class Dbf : IDisposable
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="index"/> is less than 0 or greater than or equal to <see cref="RecordCount"/>.
     /// </exception>
+    /// <remarks>
+    /// The delete-flag byte is not projected to <typeparamref name="T"/> and this method does not expose
+    /// whether a row is marked as deleted.
+    /// </remarks>
     public T GetRecord<T>(int index) => ReadRecord<T>(index, out var record) ? record : throw new ArgumentOutOfRangeException(nameof(index));
 
     /// <summary>
     /// Enumerates all records in the database.
     /// </summary>
     /// <returns>A lazy sequence that yields records in file order.</returns>
+    /// <remarks>
+    /// Enumeration includes rows marked as deleted.
+    /// </remarks>
     public IEnumerable<DbfRecord> EnumerateRecords() => EnumerateRecords<DbfRecord>();
 
     /// <summary>
@@ -389,6 +433,10 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <returns>A lazy sequence that yields records in file order.</returns>
+    /// <remarks>
+    /// Enumeration includes rows marked as deleted. The delete-flag byte is not projected to
+    /// <typeparamref name="T"/>.
+    /// </remarks>
     public IEnumerable<T> EnumerateRecords<T>()
     {
         var index = 0;
@@ -402,6 +450,9 @@ public sealed class Dbf : IDisposable
     /// Appends a record to the end of the table.
     /// </summary>
     /// <param name="record">The record to add.</param>
+    /// <remarks>
+    /// Records are written with a valid (not deleted) status marker.
+    /// </remarks>
     public void Add(DbfRecord record) => WriteRecord(RecordCount, record);
 
     /// <summary>
@@ -409,6 +460,9 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <param name="record">The record to add.</param>
+    /// <remarks>
+    /// Records are written with a valid (not deleted) status marker.
+    /// </remarks>
     public void Add<T>(T record) => WriteRecord(RecordCount, record);
 
     internal long SetStreamPositionForRecord(int recordIndex) =>

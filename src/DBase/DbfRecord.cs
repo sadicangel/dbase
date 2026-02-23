@@ -9,7 +9,7 @@ namespace DBase;
 /// </summary>
 /// <remarks>
 /// A DBF record starts with a one-byte delete flag followed by the field data, in the order defined by the
-/// table header. This type stores the persisted record status and materialized field values.
+/// table header.
 /// </remarks>
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 public readonly record struct DbfRecord : IReadOnlyList<DbfField>
@@ -20,6 +20,10 @@ public readonly record struct DbfRecord : IReadOnlyList<DbfField>
     /// <summary>
     /// Gets a value indicating whether the record is marked as deleted in the DBF stream.
     /// </summary>
+    /// <remarks>
+    /// Records created through constructors can preserve an explicit status marker. When materialized via
+    /// current typed deserialization paths, status is treated as valid.
+    /// </remarks>
     public bool IsDeleted => Status is DbfRecordStatus.Deleted;
 
     /// <summary>

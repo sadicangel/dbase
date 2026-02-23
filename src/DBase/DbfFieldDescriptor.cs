@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace DBase;
@@ -405,6 +406,31 @@ public readonly record struct DbfFieldDescriptor
             Name = name,
             Type = DbfFieldType.Variant,
             Length = length,
+        };
+    }
+
+    internal static DbfFieldDescriptor FromProperty(PropertyInfo property, DbfVersion version)
+    {
+        var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+
+        return propertyType switch
+        {
+            not null when propertyType == typeof(string) => Character(property.Name, 254),
+            not null when propertyType == typeof(char[]) => Character(property.Name, 254),
+            not null when propertyType == typeof(ReadOnlyMemory<char>) => Character(property.Name, 254),
+            not null when propertyType == typeof(int) => Numeric(property.Name, length: 10),
+            not null when propertyType == typeof(uint) => Numeric(property.Name, length: 10),
+            not null when propertyType == typeof(long) => Numeric(property.Name, length: 20),
+            not null when propertyType == typeof(ulong) => Numeric(property.Name, length: 20),
+            not null when propertyType == typeof(decimal) && version.IsFoxPro() => Currency(property.Name),
+            not null when propertyType == typeof(double) => Numeric(property.Name, length: 20, @decimal: 8),
+            not null when propertyType == typeof(float) => Numeric(property.Name, length: 20, @decimal: 8),
+            not null when propertyType == typeof(bool) => Logical(property.Name),
+            not null when propertyType == typeof(DateOnly) => Date(property.Name),
+            not null when propertyType == typeof(DateTime) && version.IsFoxPro() => DateTime(property.Name),
+            not null when propertyType == typeof(DateTime) => Date(property.Name),
+            not null when propertyType == typeof(DateTimeOffset) && version.IsFoxPro() => DateTime(property.Name),
+            _ => throw new ArgumentException($"Unsupported property '{property.Name}' ({property.PropertyType})", nameof(property)),
         };
     }
 }

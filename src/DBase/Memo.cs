@@ -43,6 +43,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// <param name="index">Block index of the memo record.</param>
     /// <returns>The memo record at <paramref name="index"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> does not reference a readable record.</exception>
+    /// <remarks>
+    /// The index is a physical block index from DBF memo pointer fields, not an ordinal position in the
+    /// enumeration returned by <see cref="GetEnumerator"/>.
+    /// </remarks>
     public MemoRecord this[int index] { get => Get(index); }
 
     private Memo(Stream memo, DbfVersion version)
@@ -68,6 +72,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// <param name="fileName">The name of the file to open.</param>
     /// <param name="version">DBF version that determines memo header and block encoding rules.</param>
     /// <returns>An opened <see cref="Memo"/> instance.</returns>
+    /// <remarks>
+    /// Header decoding and per-record framing are selected from <paramref name="version"/>.
+    /// </remarks>
     public static Memo Open(string fileName, DbfVersion version) =>
         Open(new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite), version);
 
@@ -85,6 +92,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// <param name="version">DBF version that determines memo header and block encoding rules.</param>
     /// <param name="blockLength">Size of each memo block, in bytes.</param>
     /// <returns>A created <see cref="Memo"/> instance.</returns>
+    /// <remarks>
+    /// The file starts with a 512-byte header region and initializes the next writable block index from
+    /// the configured block size.
+    /// </remarks>
     public static Memo Create(string fileName, DbfVersion version, ushort blockLength = HeaderLengthInDisk) =>
         Create(new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite), version, blockLength);
 
@@ -114,6 +125,9 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// </summary>
     /// <param name="stream">Destination stream.</param>
     /// <exception cref="ArgumentNullException"><paramref name="stream"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// This method copies the memo file as-is, including header and any unused blocks.
+    /// </remarks>
     public void WriteTo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -223,7 +237,8 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// </summary>
     /// <param name="record">Record payload and type to append.</param>
     /// <remarks>
-    /// This implementation is append-only; random overwrite is not supported.
+    /// This implementation is append-only; random overwrite is not supported. Framing bytes written
+    /// around payload data are format-dependent (DBT vs FPT).
     /// </remarks>
     public void Add(MemoRecord record) => _set(NextIndex, record.Type, record.Span);
 
@@ -233,7 +248,8 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// <param name="type">Memo payload type marker.</param>
     /// <param name="data">Memo payload bytes.</param>
     /// <remarks>
-    /// This implementation is append-only; random overwrite is not supported.
+    /// This implementation is append-only; random overwrite is not supported. Framing bytes written
+    /// around payload data are format-dependent (DBT vs FPT).
     /// </remarks>
     public void Add(MemoRecordType type, ReadOnlySpan<byte> data) => _set(NextIndex, type, data);
 
@@ -426,6 +442,10 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// Returns an enumerator that iterates readable memo records in block order.
     /// </summary>
     /// <returns>An enumerator over memo records.</returns>
+    /// <remarks>
+    /// Enumeration stops at the first unreadable record (for example, truncated data or invalid record
+    /// framing) and does not attempt recovery.
+    /// </remarks>
     public IEnumerator<MemoRecord> GetEnumerator()
     {
         var index = FirstIndex;
