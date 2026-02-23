@@ -5,7 +5,6 @@
 /// </summary>
 public static class DbfVersionExtensions
 {
-    /// <param name="version">The version marker to inspect.</param>
     extension(DbfVersion version)
     {
         /// <summary>
