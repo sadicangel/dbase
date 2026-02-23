@@ -5,13 +5,14 @@
 /// </summary>
 public static class DbfVersionExtensions
 {
+    /// <param name="version">The version marker to inspect.</param>
     extension(DbfVersion version)
     {
         /// <summary>
         /// Determines whether the dBASE memo bit (<c>0x08</c>) is set.
         /// </summary>
         /// <returns>
-        /// <see langword="true"/> when the memo flag bit is set for <paramref name="version"/>;
+        /// <see langword="true"/> when the memo flag bit is set for version;
         /// otherwise, <see langword="false"/>.
         /// </returns>
         public bool HasDosMemo() =>
@@ -21,7 +22,7 @@ public static class DbfVersionExtensions
         /// Determines whether the SQL-table marker bits (<c>0x70</c>) are set.
         /// </summary>
         /// <returns>
-        /// <see langword="true"/> when any SQL marker bit is set for <paramref name="version"/>;
+        /// <see langword="true"/> when any SQL marker bit is set for version;
         /// otherwise, <see langword="false"/>.
         /// </returns>
         public bool HasSqlTable() =>
@@ -31,7 +32,7 @@ public static class DbfVersionExtensions
         /// Determines whether the high bit (<c>0x80</c>) is set.
         /// </summary>
         /// <returns>
-        /// <see langword="true"/> when the high-bit marker is set for <paramref name="version"/>;
+        /// <see langword="true"/> when the high-bit marker is set for version;
         /// otherwise, <see langword="false"/>.
         /// </returns>
         public bool HasDbtMemo() =>
