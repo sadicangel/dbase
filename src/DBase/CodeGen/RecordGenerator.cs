@@ -152,7 +152,8 @@ internal static partial class RecordGenerator
     private static ImmutableArray<DbfFieldDescriptor> ReadDescriptors(string dbfPath)
     {
         using var stream = File.OpenRead(dbfPath);
-        return Dbf.ReadHeader(stream).descriptors;
+        var header = Dbf.ReadHeader(stream);
+        return Dbf.ReadDescriptors(stream, header.Version);
     }
 
     private static string GetTypeName(string dbfPath, bool pascalCase) =>
