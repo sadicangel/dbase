@@ -142,7 +142,9 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
-        var (header, descriptors, dbcBacklink) = ReadHeader(dbf);
+        var header = ReadHeader(dbf);
+        var descriptors = ReadDescriptors(dbf, header.Version);
+        var dbcBacklink = ReadDbcBacklink(dbf, header.Version, header.HeaderLength - DbcBacklink.Size);
         return new Dbf(
             dbf,
             in header,
@@ -224,7 +226,9 @@ public sealed class Dbf : IDisposable
             ? new DbcBacklink(new byte[DbcBacklink.Size])
             : DbcBacklink.Empty;
 
-        WriteHeader(dbf, in header, descriptors, dbcBacklink);
+        WriteHeader(dbf, in header);
+        WriteDescriptors(dbf, header.Version, descriptors);
+        WriteDbcBacklink(dbf, header.Version, header.HeaderLength - DbcBacklink.Size, dbcBacklink);
 
         return new Dbf(
             dbf,
@@ -294,14 +298,16 @@ public sealed class Dbf : IDisposable
         if (_dirty)
         {
             _dirty = false;
-            WriteHeader(_dbf, in _header, Descriptors, DbcBacklink);
+            WriteHeader(_dbf, in _header);
+            WriteDescriptors(_dbf, _header.Version, Descriptors);
+            WriteDbcBacklink(_dbf, _header.Version, _header.HeaderLength - DbcBacklink.Size, DbcBacklink);
         }
 
         Memo?.Flush();
         _dbf.Flush();
     }
 
-    internal static (DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, DbcBacklink dbcBackLink) ReadHeader(Stream dbf)
+    internal static DbfHeader ReadHeader(Stream dbf)
     {
         dbf.Position = 0;
         var version = (DbfVersion)dbf.ReadByte();
@@ -312,13 +318,16 @@ public sealed class Dbf : IDisposable
             throw new NotSupportedException($"Unsupported DBF version '0x{(byte)version:X2}'");
         }
 
-        var header = version is DbfVersion.DBase02
+        return version is DbfVersion.DBase02
             ? dbf.Read<DbfHeader02>()
             : dbf.Read<DbfHeader>();
+    }
 
+    internal static ImmutableArray<DbfFieldDescriptor> ReadDescriptors(Stream dbf, DbfVersion version)
+    {
         var builder = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(initialCapacity: 8);
 
-        if (header.Version is DbfVersion.DBase02)
+        if (version is DbfVersion.DBase02)
         {
             dbf.Position = DbfHeader02.Size;
             while (TryReadDescriptor(dbf, out DbfFieldDescriptor02 descriptor))
@@ -336,21 +345,24 @@ public sealed class Dbf : IDisposable
         if (dbf.ReadByte() is not 0x0D)
             throw new InvalidDataException("Invalid DBF header terminator");
 
-        var dbcBackLink = DbcBacklink.Empty;
-        if (header.Version.IsFoxPro())
-        {
-            var rawBackLink = new byte[DbcBacklink.Size];
-            dbf.ReadExactly(rawBackLink);
-            dbcBackLink = new DbcBacklink(rawBackLink);
-        }
-
-        return (header, builder.ToImmutable(), dbcBackLink);
+        return builder.ToImmutable();
 
         static bool TryReadDescriptor<T>(Stream dbf, out T descriptor) where T : unmanaged =>
             dbf.TryRead(out descriptor) && Unsafe.As<T, byte>(ref descriptor) is not 0x0D;
     }
 
-    internal static void WriteHeader(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, DbcBacklink dbcBacklink)
+    internal static DbcBacklink ReadDbcBacklink(Stream dbf, DbfVersion version, int offset)
+    {
+        if (!version.IsFoxPro())
+            return DbcBacklink.Empty;
+
+        dbf.Position = offset;
+        var rawBackLink = new byte[DbcBacklink.Size];
+        dbf.ReadExactly(rawBackLink);
+        return new DbcBacklink(rawBackLink);
+    }
+
+    internal static void WriteHeader(Stream dbf, in DbfHeader header)
     {
         if (!Enum.IsDefined(header.Version))
         {
@@ -360,8 +372,16 @@ public sealed class Dbf : IDisposable
         dbf.Position = 0;
 
         if (header.Version is DbfVersion.DBase02)
-        {
             dbf.Write((DbfHeader02)header);
+        else
+            dbf.Write(header);
+    }
+
+    internal static void WriteDescriptors(Stream dbf, DbfVersion version, ImmutableArray<DbfFieldDescriptor> descriptors)
+    {
+        if (version is DbfVersion.DBase02)
+        {
+            dbf.Position = DbfHeader02.Size;
             foreach (var descriptor in descriptors)
             {
                 dbf.Write((DbfFieldDescriptor02)descriptor);
@@ -376,7 +396,7 @@ public sealed class Dbf : IDisposable
         }
         else
         {
-            dbf.Write(header);
+            dbf.Position = DbfHeader.Size;
             foreach (var descriptor in descriptors)
             {
                 dbf.Write(descriptor);
@@ -384,11 +404,15 @@ public sealed class Dbf : IDisposable
 
             dbf.WriteByte(0x0D);
         }
+    }
 
-        if (header.Version.IsFoxPro())
-        {
-            dbf.Write(dbcBacklink.Content.Span);
-        }
+    internal static void WriteDbcBacklink(Stream dbf, DbfVersion version, int offset, DbcBacklink dbcBacklink)
+    {
+        if (!version.IsFoxPro())
+            return;
+
+        dbf.Position = offset;
+        dbf.Write(dbcBacklink.Content.Span);
     }
 
     /// <summary>
