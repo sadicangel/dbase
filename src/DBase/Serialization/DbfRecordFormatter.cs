@@ -3,6 +3,8 @@ using DBase.Serialization.Fields;
 
 namespace DBase.Serialization;
 
+internal readonly record struct DbfRecordValues(DbfRecordStatus Status, object?[] Values);
+
 internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor> descriptors)
 {
     private readonly ImmutableArray<DbfFieldFormatter> _formatters = CreateFormatters(descriptors);
@@ -19,9 +21,9 @@ internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor
         return formatters.MoveToImmutable();
     }
 
-    public object?[] Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
+    public DbfRecordValues Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
     {
-        _ = (DbfRecordStatus)source[0];
+        var status = (DbfRecordStatus)source[0];
 
         var values = new object?[descriptors.Length];
         var i = 0;
@@ -30,7 +32,7 @@ internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor
             values[i++] = reader.Read(source.Slice(descriptor.Offset, descriptor.Length), context);
         }
 
-        return values;
+        return new DbfRecordValues(status, values);
     }
 
     public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, DbfSerializationContext context)
