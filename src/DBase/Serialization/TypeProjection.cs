@@ -6,23 +6,23 @@ namespace DBase.Serialization;
 // Bidirectional projection between T and object?[]
 internal readonly record struct TypeProjection<T>
 {
-    private readonly Func<object?[], T> _create = GetCreateFunction();
+    private readonly Func<DbfRecordStatus, object?[], T> _create = GetCreateFunction();
     private readonly Func<T, object?[]> _values = GetValuesFunction();
 
     public TypeProjection() { }
 
-    public T Create(object?[] arguments) => _create(arguments);
+    public T Create(DbfRecordStatus status, object?[] arguments) => _create(status, arguments);
 
     public object?[] Values(T instance) => _values(instance);
 
-    private static Func<object?[], T> GetCreateFunction()
+    private static Func<DbfRecordStatus, object?[], T> GetCreateFunction()
     {
         var type = typeof(T);
         if (type == typeof(DbfRecord))
         {
             return DbfRecordCreate;
 
-            static T DbfRecordCreate(object?[] values)
+            static T DbfRecordCreate(DbfRecordStatus status, object?[] values)
             {
                 var fields = ImmutableArray.CreateBuilder<DbfField>(values.Length);
                 foreach (var value in values)
@@ -30,7 +30,7 @@ internal readonly record struct TypeProjection<T>
                     fields.Add((DbfField)value!);
                 }
 
-                return (T)(object)new DbfRecord(fields.MoveToImmutable());
+                return (T)(object)new DbfRecord(status, fields.MoveToImmutable());
             }
         }
 
@@ -39,12 +39,13 @@ internal readonly record struct TypeProjection<T>
             ?? type.GetConstructor(Type.EmptyTypes)
             ?? throw new InvalidOperationException($"Type {type} does not have a parameterless constructor or a constructor with the arguments {string.Join(", ", properties.Select(a => a.PropertyType.ToString()))}");
 
-        var parameter = Expression.Parameter(typeof(object[]), "args");
+        var statusParameter = Expression.Parameter(typeof(DbfRecordStatus), "status");
+        var argumentsParameter = Expression.Parameter(typeof(object[]), "args");
 
         var arguments = new Expression[properties.Length];
         for (var i = 0; i < properties.Length; ++i)
         {
-            arguments[i] = Expression.Convert(Expression.ArrayIndex(parameter, Expression.Constant(i)), properties[i].PropertyType);
+            arguments[i] = Expression.Convert(Expression.ArrayIndex(argumentsParameter, Expression.Constant(i)), properties[i].PropertyType);
         }
 
         Expression body;
@@ -54,15 +55,29 @@ internal readonly record struct TypeProjection<T>
         }
         else
         {
-            var instance = Expression.Parameter(typeof(T), "instance");
-            var ctor = Expression.New(constructor);
-            var setters = Enumerable.Range(0, properties.Length)
-                .Select(i => Expression.Assign(Expression.Property(instance, properties[i]), arguments[i]));
+            var readOnlyProperty = properties.FirstOrDefault(static property => property.SetMethod?.IsPublic is not true);
+            if (readOnlyProperty is not null)
+            {
+                throw new InvalidOperationException($"Property {type}.{readOnlyProperty.Name} must have a public setter for parameterless construction.");
+            }
 
-            body = Expression.Block([ctor, .. setters]);
+            var instance = Expression.Variable(type, "instance");
+            var expressions = new List<Expression>(properties.Length + 2)
+            {
+                Expression.Assign(instance, Expression.New(constructor))
+            };
+
+            for (var i = 0; i < properties.Length; ++i)
+            {
+                expressions.Add(Expression.Assign(Expression.Property(instance, properties[i]), arguments[i]));
+            }
+
+            expressions.Add(instance);
+
+            body = Expression.Block([instance], expressions);
         }
 
-        return Expression.Lambda<Func<object?[], T>>(body, parameter).Compile();
+        return Expression.Lambda<Func<DbfRecordStatus, object?[], T>>(body, statusParameter, argumentsParameter).Compile();
     }
 
     private static Func<T, object?[]> GetValuesFunction()

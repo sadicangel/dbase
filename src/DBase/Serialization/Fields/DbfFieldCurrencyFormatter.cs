@@ -8,6 +8,16 @@ internal static class DbfFieldCurrencyFormatter
 
     public static void WriteRaw(Span<byte> target, decimal value) => BinaryPrimitives.WriteInt64LittleEndian(target, decimal.ToOACurrency(value));
 
+    private static void WriteRaw(Span<byte> target, decimal? value)
+    {
+        if (value is null)
+        {
+            throw new InvalidOperationException("Currency fields cannot serialize null values because the field data does not carry an inline null marker.");
+        }
+
+        WriteRaw(target, value.Value);
+    }
+
     public static DbfFieldFormatter Create(Type propertyType)
     {
         if (propertyType == typeof(DbfField))
@@ -30,6 +40,17 @@ internal static class DbfFieldCurrencyFormatter
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
                 WriteRaw(target, (decimal)value!);
+        }
+
+        if (propertyType == typeof(decimal?))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+                ReadRaw(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+                WriteRaw(target, (decimal?)value);
         }
 
         throw new ArgumentException("Currency fields must be of a type convertible to decimal", nameof(propertyType));

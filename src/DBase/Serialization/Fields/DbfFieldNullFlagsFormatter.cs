@@ -16,6 +16,17 @@ internal static class DbfFieldNullFlagsFormatter
         Convert.FromHexString(value, target, out _, out _);
     }
 
+    private static byte[] ReadBytes(ReadOnlySpan<byte> source) => source.ToArray();
+
+    private static void WriteBytes(Span<byte> target, byte[]? value)
+    {
+        target.Clear();
+        if (value is null)
+            return;
+
+        value.CopyTo(target);
+    }
+
     public static DbfFieldFormatter Create(Type propertyType)
     {
         if (propertyType == typeof(DbfField))
@@ -38,6 +49,17 @@ internal static class DbfFieldNullFlagsFormatter
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
                 WriteRaw(target, (string?)value);
+        }
+
+        if (propertyType == typeof(byte[]))
+        {
+            return new DbfFieldFormatter(Read, Write);
+
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                ReadBytes(source);
+
+            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                WriteBytes(target, (byte[]?)value);
         }
 
         throw new ArgumentException("NullFlags fields must be of a type convertible to string", nameof(propertyType));
