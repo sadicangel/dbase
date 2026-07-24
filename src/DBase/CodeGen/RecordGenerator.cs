@@ -153,7 +153,7 @@ internal static partial class RecordGenerator
     {
         using var stream = File.OpenRead(dbfPath);
         var header = Dbf.ReadHeader(stream);
-        return Dbf.ReadDescriptors(stream, header.Version);
+        return Dbf.ReadDescriptors(stream, in header);
     }
 
     private static string GetTypeName(string dbfPath, bool pascalCase) =>
