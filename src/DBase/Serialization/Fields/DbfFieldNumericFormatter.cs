@@ -114,7 +114,7 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                     (DbfField)ReadRaw(source, context.Encoding);
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -125,7 +125,7 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                     ReadRaw(source, context.Encoding) is { } l ? (int)l : 0;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -147,7 +147,7 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                     ReadRawUnsigned(source, context.Encoding) is { } l ? checked((uint)l) : 0U;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -169,7 +169,7 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                     ReadRaw(source, context.Encoding) ?? 0L;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -191,7 +191,7 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                     ReadRawUnsigned(source, context.Encoding) ?? 0UL;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -214,7 +214,7 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 (DbfField)ReadRaw(source, context.Encoding, context.DecimalSeparator);
 
             void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -225,7 +225,7 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : 0f;
 
             void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -247,7 +247,7 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding, context.DecimalSeparator) ?? 0D;
 
             void Write(Span<byte> target, object? value, DbfSerializationContext context) =>

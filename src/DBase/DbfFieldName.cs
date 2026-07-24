@@ -134,9 +134,9 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     private static bool TryCopyAscii(ReadOnlySpan<char> source, Span<byte> destination)
     {
         destination.Clear();
-        for (var i = 0; i < source.Length; ++i)
+        foreach (var ch in source)
         {
-            if (!char.IsAscii(source[i]))
+            if (!char.IsAscii(ch))
             {
                 return false;
             }

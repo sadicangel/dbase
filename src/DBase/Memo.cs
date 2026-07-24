@@ -163,6 +163,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     public void WriteTo(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
+        Flush();
         _memo.Position = 0;
         _memo.CopyTo(stream);
     }

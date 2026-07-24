@@ -25,7 +25,7 @@ internal static class DbfFieldVariantFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 (DbfField)ReadRaw(source, context.Encoding);
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -36,7 +36,7 @@ internal static class DbfFieldVariantFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding);
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -47,7 +47,7 @@ internal static class DbfFieldVariantFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding).ToCharArray();
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
@@ -58,7 +58,7 @@ internal static class DbfFieldVariantFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding).AsMemory();
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>

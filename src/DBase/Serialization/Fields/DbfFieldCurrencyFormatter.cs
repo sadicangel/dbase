@@ -24,7 +24,7 @@ internal static class DbfFieldCurrencyFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
                 (DbfField)ReadRaw(source);
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
@@ -35,7 +35,7 @@ internal static class DbfFieldCurrencyFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
                 ReadRaw(source);
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
@@ -46,7 +46,7 @@ internal static class DbfFieldCurrencyFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
                 ReadRaw(source);
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>

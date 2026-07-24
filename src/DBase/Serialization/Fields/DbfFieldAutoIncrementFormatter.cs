@@ -13,35 +13,35 @@ internal static class DbfFieldAutoIncrementFormatter
         if (propertyType == typeof(DbfField))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (DbfField)ReadRaw(source);
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (DbfField)ReadRaw(source);
             static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, ConvertToInt32(((DbfField)value!).Value));
         }
 
         if (propertyType == typeof(int))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (int)ReadRaw(source);
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => ReadRaw(source);
             static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, (int)value!);
         }
 
         if (propertyType == typeof(uint))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => checked((uint)ReadRaw(source));
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => checked((uint)ReadRaw(source));
             static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, ConvertToInt32((uint)value!));
         }
 
         if (propertyType == typeof(long))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (long)ReadRaw(source);
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (long)ReadRaw(source);
             static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, ConvertToInt32((long)value!));
         }
 
         if (propertyType == typeof(ulong))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => checked((ulong)ReadRaw(source));
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => checked((ulong)ReadRaw(source));
             static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, ConvertToInt32((ulong)value!));
         }
 
