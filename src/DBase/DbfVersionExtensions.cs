@@ -1,10 +1,20 @@
 ﻿namespace DBase;
 
+internal enum DbfMemoFormat
+{
+    DBase3Dbt,
+    DBase4Dbt,
+    FoxProFpt,
+}
+
 /// <summary>
 /// Extensions for <see cref="DbfVersion" />.
 /// </summary>
 public static class DbfVersionExtensions
 {
+    private static NotSupportedException UnsupportedMemoVersion(DbfVersion version) =>
+        new($"DBF version '{version}' (0x{(byte)version:X2}) does not have a supported memo file format.");
+
     /// <param name="version">The version marker to inspect.</param>
     extension(DbfVersion version)
     {
@@ -38,12 +48,36 @@ public static class DbfVersionExtensions
         public bool HasDbtMemo() =>
             ((byte)version & 0b1000_0000) != 0;
 
+        internal bool HasSupportedMemo() =>
+            version is DbfVersion.DBase83
+                or DbfVersion.DBase8B
+                or DbfVersion.VisualFoxPro
+                or DbfVersion.VisualFoxProWithAutoIncrement
+                or DbfVersion.VisualFoxProWithVarchar
+                or DbfVersion.FoxPro2WithMemo;
+
+        internal DbfMemoFormat GetMemoFormat() =>
+            version switch
+            {
+                DbfVersion.DBase83 => DbfMemoFormat.DBase3Dbt,
+                DbfVersion.DBase8B => DbfMemoFormat.DBase4Dbt,
+                DbfVersion.VisualFoxPro
+                    or DbfVersion.VisualFoxProWithAutoIncrement
+                    or DbfVersion.VisualFoxProWithVarchar
+                    or DbfVersion.FoxPro2WithMemo => DbfMemoFormat.FoxProFpt,
+                _ => throw UnsupportedMemoVersion(version),
+            };
+
+        internal string GetMemoFileExtension() =>
+            version.GetMemoFormat() is DbfMemoFormat.FoxProFpt ? "fpt" : "dbt";
+
         /// <summary>
         /// Determines whether the <see cref="DbfVersion"/> is a FoxPro version.
         /// </summary>
         /// <returns>
         /// <see langword="true"/> for Visual FoxPro variants supported by this library; otherwise,
-        /// <see langword="false"/>.
+        /// <see langword="false"/>. FoxPro 2.x memo tables are not Visual FoxPro tables even though
+        /// their memo files use the FoxPro <c>.fpt</c> format.
         /// </returns>
         public bool IsFoxPro() =>
             version is DbfVersion.VisualFoxPro or DbfVersion.VisualFoxProWithAutoIncrement or DbfVersion.VisualFoxProWithVarchar;

@@ -7,9 +7,23 @@ internal static class DbfFieldDescriptorExtensions
 {
     extension(ImmutableArray<DbfFieldDescriptor> descriptors)
     {
+        public bool HasMemoFields()
+        {
+            foreach (var descriptor in descriptors)
+            {
+                if (descriptor.Type is DbfFieldType.Blob or DbfFieldType.Memo or DbfFieldType.Ole or DbfFieldType.Picture ||
+                    descriptor.Type is DbfFieldType.Binary && descriptor.Length is not 8)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public DbfTableFlags GetTableFlags()
         {
-            if (descriptors.Any(descriptor => descriptor.Type is DbfFieldType.Binary or DbfFieldType.Blob or DbfFieldType.Memo))
+            if (descriptors.HasMemoFields())
             {
                 return DbfTableFlags.HasMemoField;
             }
