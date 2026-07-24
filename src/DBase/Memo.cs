@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using System.Collections;
+using System.Diagnostics;
 using DBase.Interop;
 using DotNext.Buffers;
 
@@ -28,7 +29,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private readonly GetDelegate _get;
     private readonly SetDelegate _set;
     private readonly LenDelegate _len;
-    private readonly DbfVersion _version;
+    private readonly DbfMemoFormat _format;
     private bool _dirty;
 
     internal int FirstIndex => GetBlockCount(HeaderLengthInDisk, BlockLength);
@@ -52,17 +53,15 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     private Memo(Stream memo, DbfVersion version)
     {
         _memo = memo;
-        (NextIndex, BlockLength) = ReadHeaderInfo(memo, version);
-        _version = version;
-        (_get, _set, _len) = version switch
+        var format = version.GetMemoFormat();
+        (NextIndex, BlockLength) = ReadHeaderInfo(memo, format);
+        _format = format;
+        (_get, _set, _len) = format switch
         {
-            DbfVersion.DBase83 => ((GetDelegate)Get83, (SetDelegate)Set83, (LenDelegate)Len83),
-            DbfVersion.DBase8B => (Get8B, Set8B, Len8B),
-            DbfVersion.VisualFoxPro => (GetFP, SetFP, LenFP),
-            DbfVersion.VisualFoxProWithAutoIncrement => (GetFP, SetFP, LenFP),
-            DbfVersion.VisualFoxProWithVarchar => (GetFP, SetFP, LenFP),
-            DbfVersion.FoxPro2WithMemo => (GetFP, SetFP, LenFP),
-            _ => throw new NotSupportedException($"Unsupported DBF version '{(byte)version}'")
+            DbfMemoFormat.DBase3Dbt => ((GetDelegate)Get83, (SetDelegate)Set83, (LenDelegate)Len83),
+            DbfMemoFormat.DBase4Dbt => (Get8B, Set8B, Len8B),
+            DbfMemoFormat.FoxProFpt => (GetFP, SetFP, LenFP),
+            _ => throw new UnreachableException(),
         };
     }
 
@@ -75,8 +74,24 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// <remarks>
     /// Header decoding and per-record framing are selected from <paramref name="version"/>.
     /// </remarks>
-    public static Memo Open(string fileName, DbfVersion version) =>
-        Open(new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite), version);
+    public static Memo Open(string fileName, DbfVersion version)
+    {
+        _ = version.GetMemoFormat();
+        FileStream? stream = null;
+
+        try
+        {
+            stream = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
+            var result = Open(stream, version);
+            stream = null;
+            return result;
+        }
+        catch
+        {
+            stream?.Dispose();
+            throw;
+        }
+    }
 
     internal static Memo Open(Stream stream, DbfVersion version)
     {
@@ -96,14 +111,31 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
     /// The file starts with a 512-byte header region and initializes the next writable block index from
     /// the configured block size.
     /// </remarks>
-    public static Memo Create(string fileName, DbfVersion version, ushort blockLength = HeaderLengthInDisk) =>
-        Create(new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite), version, blockLength);
+    public static Memo Create(string fileName, DbfVersion version, ushort blockLength = HeaderLengthInDisk)
+    {
+        _ = version.GetMemoFormat();
+        FileStream? stream = null;
+
+        try
+        {
+            stream = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
+            var result = Create(stream, version, blockLength);
+            stream = null;
+            return result;
+        }
+        catch
+        {
+            stream?.Dispose();
+            throw;
+        }
+    }
 
     internal static Memo Create(Stream stream, DbfVersion version, ushort blockLength = HeaderLengthInDisk)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        WriteHeaderInfo(stream, version, GetBlockCount(HeaderLengthInDisk, blockLength), blockLength);
+        var format = version.GetMemoFormat();
+        WriteHeaderInfo(stream, format, GetBlockCount(HeaderLengthInDisk, blockLength), blockLength);
 
         return new Memo(stream, version);
     }
@@ -135,36 +167,33 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         _memo.CopyTo(stream);
     }
 
-    private static (int nextIndex, ushort blockLength) ReadHeaderInfo(Stream stream, DbfVersion version)
+    private static (int nextIndex, ushort blockLength) ReadHeaderInfo(Stream stream, DbfMemoFormat format)
     {
         stream.Position = 0;
-        switch (version)
+        switch (format)
         {
-            case DbfVersion.DBase83:
-            case DbfVersion.DBase8B:
+            case DbfMemoFormat.DBase3Dbt:
+            case DbfMemoFormat.DBase4Dbt:
                 {
                     var header = stream.Read<DbtHeader>();
                     return (header.NextIndex, header.BlockLength);
                 }
-            case DbfVersion.VisualFoxPro:
-            case DbfVersion.VisualFoxProWithAutoIncrement:
-            case DbfVersion.VisualFoxProWithVarchar:
-            case DbfVersion.FoxPro2WithMemo:
+            case DbfMemoFormat.FoxProFpt:
                 {
                     var header = stream.Read<FptHeader>();
                     return (header.NextIndex, header.BlockLength);
                 }
             default:
-                throw new NotSupportedException($"Unsupported DBF version '{(byte)version}'");
+                throw new UnreachableException();
         }
     }
 
-    private static void WriteHeaderInfo(Stream stream, DbfVersion version, int nextIndex, ushort blockLength)
+    private static void WriteHeaderInfo(Stream stream, DbfMemoFormat format, int nextIndex, ushort blockLength)
     {
-        switch (version)
+        switch (format)
         {
-            case DbfVersion.DBase83:
-            case DbfVersion.DBase8B:
+            case DbfMemoFormat.DBase3Dbt:
+            case DbfMemoFormat.DBase4Dbt:
                 {
                     stream.Position = 0;
                     stream.Write(
@@ -176,10 +205,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
                 }
                 break;
 
-            case DbfVersion.VisualFoxPro:
-            case DbfVersion.VisualFoxProWithAutoIncrement:
-            case DbfVersion.VisualFoxProWithVarchar:
-            case DbfVersion.FoxPro2WithMemo:
+            case DbfMemoFormat.FoxProFpt:
                 {
                     stream.Position = 0;
                     stream.Write(
@@ -192,7 +218,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
                 break;
 
             default:
-                throw new NotSupportedException($"Unsupported DBF version '{(byte)version}'");
+                throw new UnreachableException();
         }
     }
 
@@ -213,7 +239,7 @@ public sealed class Memo : IDisposable, IEnumerable<MemoRecord>
         if (_dirty)
         {
             _dirty = false;
-            WriteHeaderInfo(_memo, _version, NextIndex, BlockLength);
+            WriteHeaderInfo(_memo, _format, NextIndex, BlockLength);
         }
 
         _memo.Flush();

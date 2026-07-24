@@ -122,20 +122,37 @@ public sealed class Dbf : IDisposable
     /// <param name="fileName">The name of the file to open.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     /// <remarks>
-    /// This method attempts to open a sibling memo file with <c>.dbt</c> extension first, then <c>.fpt</c>.
+    /// This method opens a sibling memo file when the DBF version maps to a supported memo format and the
+    /// expected memo extension exists.
     /// </remarks>
     public static Dbf Open(string fileName)
     {
-        var dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
-        var dbtName = Path.ChangeExtension(fileName, "dbt");
-        var memo = File.Exists(dbtName) ? new FileStream(dbtName, FileMode.Open, FileAccess.ReadWrite) : null;
-        if (memo is null)
-        {
-            var fptName = Path.ChangeExtension(fileName, "fpt");
-            memo = File.Exists(fptName) ? new FileStream(fptName, FileMode.Open, FileAccess.ReadWrite) : null;
-        }
+        FileStream? dbf = null;
+        FileStream? memo = null;
 
-        return Open(dbf, memo);
+        try
+        {
+            dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
+            var header = ReadHeader(dbf);
+            dbf.Position = 0;
+
+            if (header.Version.HasSupportedMemo())
+            {
+                var memoName = Path.ChangeExtension(fileName, header.Version.GetMemoFileExtension());
+                memo = File.Exists(memoName) ? new FileStream(memoName, FileMode.Open, FileAccess.ReadWrite) : null;
+            }
+
+            var result = Open(dbf, memo);
+            dbf = null;
+            memo = null;
+            return result;
+        }
+        catch
+        {
+            memo?.Dispose();
+            dbf?.Dispose();
+            throw;
+        }
     }
 
     internal static Dbf Open(Stream dbf, Stream? memo = null)
@@ -162,31 +179,50 @@ public sealed class Dbf : IDisposable
     /// <param name="language">The language of the dBASE database file.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     /// <remarks>
-    /// A memo file is created automatically when the schema contains memo fields. FoxPro versions use
-    /// <c>.fpt</c>; other versions use <c>.dbt</c>.
+    /// A memo file is created automatically when the schema contains memo-backed fields. The memo extension
+    /// and on-disk format are selected from <paramref name="version"/>.
     /// </remarks>
+    /// <exception cref="NotSupportedException">
+    /// The schema contains memo-backed fields, but <paramref name="version"/> does not have a supported
+    /// memo file format.
+    /// </exception>
     public static Dbf Create(
         string fileName,
         ImmutableArray<DbfFieldDescriptor> descriptors,
         DbfVersion version = DbfVersion.DBase03,
         DbfLanguage language = DbfLanguage.Ansi)
     {
-        var dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
-        var memo = default(FileStream);
-        if (!descriptors.GetTableFlags().HasFlag(DbfTableFlags.HasMemoField))
+        var memoFileName = descriptors.HasMemoFields()
+            ? Path.ChangeExtension(fileName, version.GetMemoFileExtension())
+            : null;
+
+        if (memoFileName is not null && File.Exists(memoFileName))
         {
-            return Create(dbf, descriptors, memo, version, language);
+            throw new IOException($"The file '{memoFileName}' already exists.");
         }
 
-        var extension = version.IsFoxPro() ? "fpt" : "dbt";
-        memo = new FileStream(
-            Path.ChangeExtension(
-                fileName,
-                extension),
-            FileMode.CreateNew,
-            FileAccess.ReadWrite);
+        FileStream? dbf = null;
+        FileStream? memo = null;
 
-        return Create(dbf, descriptors, memo, version, language);
+        try
+        {
+            dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
+            if (memoFileName is not null)
+            {
+                memo = new FileStream(memoFileName, FileMode.CreateNew, FileAccess.ReadWrite);
+            }
+
+            var result = Create(dbf, descriptors, memo, version, language);
+            dbf = null;
+            memo = null;
+            return result;
+        }
+        catch
+        {
+            memo?.Dispose();
+            dbf?.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -221,6 +257,20 @@ public sealed class Dbf : IDisposable
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
+        if (descriptors.HasMemoFields())
+        {
+            if (memo is null)
+            {
+                throw new ArgumentException("A memo stream is required when descriptors contain memo-backed fields.", nameof(memo));
+            }
+
+            _ = version.GetMemoFormat();
+        }
+        else if (memo is not null)
+        {
+            _ = version.GetMemoFormat();
+        }
+
         var header = new DbfHeader(descriptors, version, language);
         var dbcBacklink = version.IsFoxPro()
             ? new DbcBacklink(new byte[DbcBacklink.Size])
@@ -242,20 +292,30 @@ public sealed class Dbf : IDisposable
     /// Saves this table to a new file path and writes memo data when present.
     /// </summary>
     /// <remarks>If the current state does not include a memo, only the main file is created. Otherwise, an
-    /// additional memo file is created with an extension determined by the version.</remarks>
+    /// additional memo file is created with the extension mapped from the DBF version.</remarks>
     /// <param name="fileName">The name of the file to which the current state will be saved.</param>
     /// <exception cref="ArgumentException"><paramref name="fileName"/> is null, empty, or whitespace.</exception>
+    /// <exception cref="NotSupportedException">The current version does not have a supported memo file format.</exception>
     public void SaveAs(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        var memoFileName = Memo is not null
+            ? Path.ChangeExtension(fileName, Version.GetMemoFileExtension())
+            : null;
+
+        if (memoFileName is not null && File.Exists(memoFileName))
+        {
+            throw new IOException($"The file '{memoFileName}' already exists.");
+        }
+
         using var dbf = new FileStream(fileName, FileMode.CreateNew, FileAccess.ReadWrite);
-        if (Memo is null)
+        if (memoFileName is null)
         {
             WriteTo(dbf, null);
             return;
         }
 
-        using var memo = new FileStream(Path.ChangeExtension(fileName, Version.IsFoxPro() ? "fpt" : "dbt"), FileMode.CreateNew, FileAccess.ReadWrite);
+        using var memo = new FileStream(memoFileName, FileMode.CreateNew, FileAccess.ReadWrite);
         WriteTo(dbf, memo);
     }
 
