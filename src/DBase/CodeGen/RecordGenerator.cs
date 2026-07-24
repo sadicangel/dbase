@@ -103,13 +103,13 @@ internal static partial class RecordGenerator
         writer.Indent++;
 
         var existingIdentifiers = new HashSet<string>();
-        var offset = descriptors[^1].Offset;
-        foreach (var descriptor in descriptors)
+        for (var i = 0; i < descriptors.Length; i++)
         {
+            var descriptor = descriptors[i];
             writer.Write(GetCSharpType(descriptor));
             writer.Write(' ');
             writer.Write(GetIdentifier(descriptor.Name.ToString(), pascalCase, existingIdentifiers));
-            if (descriptor.Offset < offset)
+            if (i < descriptors.Length - 1)
                 writer.WriteLine(",");
             else
                 writer.WriteLine();
@@ -164,8 +164,9 @@ internal static partial class RecordGenerator
         return descriptor.Type switch
         {
             DbfFieldType.AutoIncrement => "int",
-            DbfFieldType.Binary => "byte[]",
-            DbfFieldType.Blob => "byte[]",
+            DbfFieldType.Binary when descriptor.Length == 8 => "double",
+            DbfFieldType.Binary => "string",
+            DbfFieldType.Blob => "string",
             DbfFieldType.Character => "string",
             DbfFieldType.Currency => "decimal",
             DbfFieldType.Date => "DateOnly",
@@ -175,11 +176,11 @@ internal static partial class RecordGenerator
             DbfFieldType.Int32 => "int",
             DbfFieldType.Logical => "bool?",
             DbfFieldType.Memo => "string",
-            DbfFieldType.NullFlags => "byte[]",
+            DbfFieldType.NullFlags => "string",
             DbfFieldType.Numeric when descriptor.Decimal == 0 => "long",
             DbfFieldType.Numeric => "double",
-            DbfFieldType.Ole => "byte[]",
-            DbfFieldType.Picture => "byte[]",
+            DbfFieldType.Ole => "string",
+            DbfFieldType.Picture => "string",
             DbfFieldType.Timestamp => "DateTime",
             DbfFieldType.Variant => "string",
             _ => throw new NotSupportedException($"Unsupported field type: {descriptor.Type}"),
