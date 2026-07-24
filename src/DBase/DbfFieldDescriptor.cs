@@ -76,6 +76,9 @@ public readonly record struct DbfFieldDescriptor
     /// Creates a new auto-increment field descriptor.
     /// </summary>
     /// <param name="name">The name of the field.</param>
+    /// <remarks>
+    /// Auto-increment values are stored as signed 4-byte little-endian integers.
+    /// </remarks>
     /// <returns>A new instance of <see cref="DbfFieldDescriptor" /></returns>
     public static DbfFieldDescriptor AutoIncrement(DbfFieldName name)
     {
@@ -85,7 +88,7 @@ public readonly record struct DbfFieldDescriptor
         {
             Name = name,
             Type = DbfFieldType.AutoIncrement,
-            Length = 8,
+            Length = 4,
             Flags = DbfFieldFlags.AutoIncrement,
         };
     }
@@ -328,7 +331,7 @@ public readonly record struct DbfFieldDescriptor
         return new DbfFieldDescriptor
         {
             Name = name,
-            Type = DbfFieldType.Float,
+            Type = DbfFieldType.Numeric,
             Length = length,
             Decimal = @decimal,
         };
