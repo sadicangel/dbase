@@ -1,7 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Interop;
 using DBase.Serialization;
@@ -160,7 +159,11 @@ public sealed class Dbf : IDisposable
         ArgumentNullException.ThrowIfNull(dbf);
 
         var header = ReadHeader(dbf);
-        var descriptors = ReadDescriptors(dbf, header.Version);
+        ValidateHeaderGeometry(in header);
+        EnsureStreamContains(dbf, header.HeaderLength, "DBF header");
+        var descriptors = ReadDescriptors(dbf, in header);
+        ValidateRecordGeometry(in header, descriptors);
+        EnsureStreamContains(dbf, GetMinimumTableLength(in header), "DBF records");
         var dbcBacklink = ReadDbcBacklink(dbf, header.Version, header.HeaderLength - DbcBacklink.Size);
         return new Dbf(
             dbf,
@@ -367,13 +370,83 @@ public sealed class Dbf : IDisposable
         _dbf.Flush();
     }
 
+    private static void ValidateHeaderGeometry(in DbfHeader header)
+    {
+        if (header.Version is DbfVersion.DBase02)
+        {
+            if (header.HeaderLength != DbfHeader02.HeaderLengthInDisk)
+            {
+                throw new InvalidDataException($"Invalid dBASE II header length {header.HeaderLength}.");
+            }
+        }
+        else
+        {
+            var minimumHeaderLength = DbfHeader.Size + 1;
+            if (header.Version.IsFoxPro())
+            {
+                minimumHeaderLength += DbcBacklink.Size;
+            }
+
+            if (header.HeaderLength < minimumHeaderLength)
+            {
+                throw new InvalidDataException($"Invalid DBF header length {header.HeaderLength}.");
+            }
+        }
+
+        if (header.RecordLength is 0)
+        {
+            throw new InvalidDataException("Invalid DBF record length 0.");
+        }
+    }
+
+    private static void ValidateRecordGeometry(in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors)
+    {
+        var expectedRecordLength = 1;
+        for (var i = 0; i < descriptors.Length; ++i)
+        {
+            expectedRecordLength += descriptors[i].Length;
+        }
+
+        if (header.RecordLength != expectedRecordLength)
+        {
+            throw new InvalidDataException(
+                $"Invalid DBF record length {header.RecordLength}; expected {expectedRecordLength} bytes from the field descriptors.");
+        }
+    }
+
+    private static void EnsureStreamContains(Stream dbf, long requiredLength, string description)
+    {
+        if (dbf.CanSeek && dbf.Length < requiredLength)
+        {
+            throw new EndOfStreamException($"The DBF stream ended before the declared {description} length of {requiredLength} bytes.");
+        }
+    }
+
+    private static long GetMinimumTableLength(in DbfHeader header) =>
+        header.HeaderLength + (long)header.RecordCount * header.RecordLength;
+
+    private static int GetDescriptorStart(DbfVersion version) =>
+        version is DbfVersion.DBase02 ? DbfHeader02.Size : DbfHeader.Size;
+
+    private static int GetDescriptorSize(DbfVersion version) =>
+        version is DbfVersion.DBase02 ? DbfFieldDescriptor02.Size : DbfFieldDescriptor.Size;
+
+    private static int GetDescriptorLimit(in DbfHeader header) =>
+        header.Version.IsFoxPro() ? header.HeaderLength - DbcBacklink.Size : header.HeaderLength;
+
     internal static DbfHeader ReadHeader(Stream dbf)
     {
         dbf.Position = 0;
-        var version = (DbfVersion)dbf.ReadByte();
+        var versionByte = dbf.ReadByte();
+        if (versionByte < 0)
+        {
+            throw new EndOfStreamException("The DBF stream ended before the file header could be read.");
+        }
+
+        var version = (DbfVersion)versionByte;
         dbf.Position = 0;
 
-        if (!Enum.IsDefined(version))
+        if (version is DbfVersion.Unknown || !Enum.IsDefined(version))
         {
             throw new NotSupportedException($"Unsupported DBF version '0x{(byte)version:X2}'");
         }
@@ -383,32 +456,49 @@ public sealed class Dbf : IDisposable
             : dbf.Read<DbfHeader>();
     }
 
-    internal static ImmutableArray<DbfFieldDescriptor> ReadDescriptors(Stream dbf, DbfVersion version)
+    internal static ImmutableArray<DbfFieldDescriptor> ReadDescriptors(Stream dbf, in DbfHeader header)
     {
         var builder = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(initialCapacity: 8);
+        var descriptorStart = GetDescriptorStart(header.Version);
+        var descriptorSize = GetDescriptorSize(header.Version);
+        var descriptorLimit = GetDescriptorLimit(in header);
+        dbf.Position = descriptorStart;
 
-        if (version is DbfVersion.DBase02)
+        while (dbf.Position < descriptorLimit)
         {
-            dbf.Position = DbfHeader02.Size;
-            while (TryReadDescriptor(dbf, out DbfFieldDescriptor02 descriptor))
-                builder.Add(descriptor);
-            dbf.Position = DbfHeader02.Size + builder.Count * DbfFieldDescriptor02.Size;
+            var marker = dbf.ReadByte();
+            if (marker < 0)
+            {
+                throw new EndOfStreamException("The DBF stream ended before the field descriptor terminator could be read.");
+            }
+
+            if (marker is 0x0D)
+            {
+                if (header.Version is not DbfVersion.DBase02 && dbf.Position != descriptorLimit)
+                {
+                    throw new InvalidDataException("Invalid DBF header length for the field descriptor list.");
+                }
+
+                return builder.ToImmutable();
+            }
+
+            --dbf.Position;
+            if (descriptorLimit - dbf.Position < descriptorSize)
+            {
+                throw new InvalidDataException("A DBF field descriptor extends beyond the declared header length.");
+            }
+
+            if (header.Version is DbfVersion.DBase02)
+            {
+                builder.Add(dbf.Read<DbfFieldDescriptor02>());
+            }
+            else
+            {
+                builder.Add(dbf.Read<DbfFieldDescriptor>());
+            }
         }
-        else
-        {
-            dbf.Position = DbfHeader.Size;
-            while (TryReadDescriptor(dbf, out DbfFieldDescriptor descriptor))
-                builder.Add(descriptor);
-            dbf.Position = DbfHeader.Size + builder.Count * DbfFieldDescriptor.Size;
-        }
 
-        if (dbf.ReadByte() is not 0x0D)
-            throw new InvalidDataException("Invalid DBF header terminator");
-
-        return builder.ToImmutable();
-
-        static bool TryReadDescriptor<T>(Stream dbf, out T descriptor) where T : unmanaged =>
-            dbf.TryRead(out descriptor) && Unsafe.As<T, byte>(ref descriptor) is not 0x0D;
+        throw new InvalidDataException("Missing DBF field descriptor terminator.");
     }
 
     internal static DbcBacklink ReadDbcBacklink(Stream dbf, DbfVersion version, int offset)
