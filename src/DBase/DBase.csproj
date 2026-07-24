@@ -13,7 +13,7 @@
     <Company>sadicangel</Company>
     <Description>DBase library for reading and writing .dbf files in .NET</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>apache;avro;apacheavro;generator;generation;codegen;codegenerator;codegeneration</PackageTags>
+    <PackageTags>dbase;xbase;dbf;foxbase;foxpro;visualfoxpro;database;codegen</PackageTags>
     <RepositoryUrl>https://github.com/sadicangel/dbase</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <!--<PackageIcon>icon.png</PackageIcon>-->

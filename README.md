@@ -1,14 +1,14 @@
 # dbase
 
-A library to read and write FoxBase, dBASE III, and dBASE IV .dbf files.
+A .NET library for reading and writing xBase DBF files.
 
 ## Features
 
-- Read and write .dbf files
-- Support for various dBASE versions including FoxBase, dBASE III, dBASE IV, and Visual FoxPro
-- Handle memo fields in .dbt and .fpt files
-- Enumerable access to records and memo fields
-- Integration with .NET for easy use in C# projects
+- Read and write DBF files through untyped `DbfRecord` values or typed .NET records/classes
+- Support implemented dBASE/FoxBASE/FoxPro/Visual FoxPro version markers exposed by `DbfVersion`
+- Open sibling `.dbt` or `.fpt` memo files when present, and create memo files for schemas that require them
+- Enumerate records and memo entries in file order
+- Generate C# record/class definitions from existing DBF descriptors
 
 ## Installation
 
@@ -21,19 +21,21 @@ To install the library, add the following package reference to your project:
 ## Usage
 
 ### Reading a .dbf File
+
 ```cs
 using DBase;
 
-var dbfPath = "path/to/your/file.dbf";
+var dbfPath = "path/to/file.dbf";
 using var dbf = Dbf.Open(dbfPath);
 
 // Using built-in `DbfRecord` type.
 foreach (var record in dbf.EnumerateRecords())
 {
-    foreach(var field in record)
+    foreach (var field in record)
     {
         Console.WriteLine(field);
     }
+
     Console.WriteLine();
 }
 
@@ -46,17 +48,20 @@ foreach (var record in dbf.EnumerateRecords<MyRecordType>())
 ```
 
 ### Writing to a .dbf File
+
 ```cs
 using DBase;
 
-var dbfPath = "path/to/your/file.dbf";
-using var dbf = Dbf.Create(dbfPath, [DbfFieldDescriptor.Character("FieldName", 20)]);
+var dbfPath = "path/to/new-file.dbf";
+using var dbf = Dbf.Create(
+    dbfPath,
+    [DbfFieldDescriptor.Character("FieldName", 20)]);
 
 // Using built-in `DbfRecord` type.
-dbf.AddRecord(new DbfRecord("Value"));
+dbf.Add(new DbfRecord("Value"));
 
 // Using a custom type.
-dbf.AddRecord(new MyRecordType { FieldName = "Value" });
+dbf.Add(new MyRecordType { FieldName = "Value" });
 ```
 
 ## References
