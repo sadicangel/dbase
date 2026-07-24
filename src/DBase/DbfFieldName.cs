@@ -18,7 +18,7 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     private byte _e0;
 
     /// <summary>
-    /// Gets a value indicating whether the name contains at least one non-whitespace character.
+    /// Gets a value indicating whether the name contains non-empty ASCII bytes with optional null padding.
     /// </summary>
     /// <remarks>
     /// This is the validity rule used by this library when creating descriptors.
@@ -27,10 +27,27 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     {
         get
         {
+            var hasName = false;
+            var hasTerminator = false;
+
             for (var i = 0; i < Size; ++i)
-                if (!char.IsWhiteSpace((char)this[i]))
-                    return true;
-            return false;
+            {
+                var value = this[i];
+                if (value is 0)
+                {
+                    hasTerminator = true;
+                    continue;
+                }
+
+                if (hasTerminator || value > 0x7F || char.IsWhiteSpace((char)value))
+                {
+                    return false;
+                }
+
+                hasName = true;
+            }
+
+            return hasName;
         }
     }
 
@@ -40,9 +57,12 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     /// <param name="name">Field-name bytes. Bytes beyond 10 are ignored.</param>
     /// <remarks>
     /// The input is copied as-is (no encoding conversion). Remaining bytes are left as zero.
+    /// Descriptor construction rejects names that are empty, contain non-ASCII bytes, or contain
+    /// non-zero bytes after the first null terminator.
     /// </remarks>
     public DbfFieldName(ReadOnlySpan<byte> name)
     {
+        this = default;
         var length = Math.Min(name.Length, Size);
         for (var i = 0; i < length; ++i)
             this[i] = name[i];
@@ -53,14 +73,13 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     /// </summary>
     /// <param name="name">Field-name characters to encode as ASCII.</param>
     /// <remarks>
-    /// Characters are encoded using ASCII. If the full input cannot be encoded into 10 bytes, progressively
-    /// shorter prefixes are attempted until conversion succeeds or the value becomes empty.
+    /// Characters are copied as ASCII bytes. Inputs longer than 10 characters are truncated, and inputs
+    /// containing any non-ASCII character produce an invalid name that descriptor construction rejects.
     /// </remarks>
     public DbfFieldName(ReadOnlySpan<char> name)
     {
-        for (var length = Math.Min(name.Length, 10); length > 0; length--)
-            if (Encoding.ASCII.TryGetBytes(name[..length], this, out _))
-                break;
+        this = default;
+        _ = TryCopyAscii(name, this);
     }
 
     /// <summary>
@@ -108,9 +127,26 @@ public struct DbfFieldName : IEquatable<DbfFieldName>, IEquatable<ReadOnlySpan<c
     public readonly bool Equals(ReadOnlySpan<char> other)
     {
         Span<byte> buffer = stackalloc byte[Size];
-        return Encoding.ASCII.TryGetBytes(other, buffer, out var bytesWritten)
-            && bytesWritten <= Size
+        return TryCopyAscii(other, buffer)
             && Equals(buffer);
+    }
+
+    private static bool TryCopyAscii(ReadOnlySpan<char> source, Span<byte> destination)
+    {
+        destination.Clear();
+        for (var i = 0; i < source.Length; ++i)
+        {
+            if (!char.IsAscii(source[i]))
+            {
+                return false;
+            }
+        }
+
+        var length = Math.Min(source.Length, Size);
+        for (var i = 0; i < length; ++i)
+            destination[i] = (byte)source[i];
+
+        return true;
     }
 
     /// <summary>Determines whether two specified <see cref="DbfFieldName"/> values are equal.</summary>

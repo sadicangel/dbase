@@ -34,19 +34,28 @@ internal static class DbfFieldNumericFormatter
 
         var f64 = value.Value;
 
-        Span<char> format = ['F', '\0', '\0'];
+        Span<char> format = stackalloc char[4];
+        format[0] = 'F';
         if (!@decimal.TryFormat(format[1..], out var charsWritten))
             throw new InvalidOperationException("Failed to create decimal format");
         format = format[..(1 + charsWritten)];
 
-        Span<char> chars = stackalloc char[20];
-        if (!f64.TryFormat(chars, out charsWritten, format, CultureInfo.InvariantCulture))
-            throw new InvalidOperationException($"Failed to format value '{f64}' for numeric field");
+        var capacity = Math.Max(target.Length, 32);
+        Span<char> chars = stackalloc char[Math.Min(capacity, 256)];
+        if (capacity > chars.Length)
+        {
+            chars = new char[capacity];
+        }
 
-        if (decimalSeparator is not '.' && chars.IndexOf(decimalSeparator) is var idx and >= 0)
+        if (!f64.TryFormat(chars, out charsWritten, format, CultureInfo.InvariantCulture))
+            throw new OverflowException($"Numeric value '{f64}' does not fit in field length {target.Length} with {@decimal} decimal place(s).");
+
+        chars = chars[..charsWritten];
+
+        if (decimalSeparator is not '.' && chars.IndexOf('.') is var idx and >= 0)
             chars[idx] = decimalSeparator;
 
-        _ = encoding.TryGetBytes(chars[..charsWritten], target[^charsWritten..], out _);
+        WriteRightAligned(target, chars, encoding);
     }
 
     public static void WriteRaw(Span<byte> target, long? value, Encoding encoding)
@@ -60,7 +69,41 @@ internal static class DbfFieldNumericFormatter
         Span<char> @long = stackalloc char[20];
         if (!i64.TryFormat(@long, out var charsWritten, "D", CultureInfo.InvariantCulture))
             throw new InvalidOperationException($"Failed to format value '{i64}' as '{DbfFieldType.Numeric}'");
-        _ = encoding.TryGetBytes(@long[..charsWritten], target, out _);
+        WriteRightAligned(target, @long[..charsWritten], encoding);
+    }
+
+    public static ulong? ReadRawUnsigned(ReadOnlySpan<byte> source, Encoding encoding)
+    {
+        source = source.Trim("\0 "u8);
+        if (source.IsEmpty) return null;
+        Span<char> integer = stackalloc char[encoding.GetCharCount(source)];
+        encoding.GetChars(source, integer);
+        return ulong.Parse(integer, NumberStyles.Integer, CultureInfo.InvariantCulture);
+    }
+
+    public static void WriteRaw(Span<byte> target, ulong? value, Encoding encoding)
+    {
+        target.Fill((byte)' ');
+        if (value is null)
+            return;
+
+        var u64 = value.Value;
+
+        Span<char> @ulong = stackalloc char[20];
+        if (!u64.TryFormat(@ulong, out var charsWritten, "D", CultureInfo.InvariantCulture))
+            throw new InvalidOperationException($"Failed to format value '{u64}' as '{DbfFieldType.Numeric}'");
+        WriteRightAligned(target, @ulong[..charsWritten], encoding);
+    }
+
+    private static void WriteRightAligned(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
+    {
+        var byteCount = encoding.GetByteCount(value);
+        if (byteCount > target.Length)
+        {
+            throw new OverflowException($"Numeric value '{new string(value)}' requires {byteCount} byte(s), but field length is {target.Length}.");
+        }
+
+        _ = encoding.GetBytes(value, target[^byteCount..]);
     }
 
     public static DbfFieldFormatter Create(Type propertyType, byte @decimal)
@@ -105,10 +148,10 @@ internal static class DbfFieldNumericFormatter
                 return new DbfFieldFormatter(Read, Write);
 
                 static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
-                    ReadRaw(source, context.Encoding) is { } l ? unchecked((uint)l) : 0U;
+                    ReadRawUnsigned(source, context.Encoding) is { } l ? checked((uint)l) : 0U;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
-                    WriteRaw(target, (uint?)value, context.Encoding);
+                    WriteRaw(target, (ulong?)(uint?)value, context.Encoding);
             }
 
             if (propertyType == typeof(uint?))
@@ -116,10 +159,10 @@ internal static class DbfFieldNumericFormatter
                 return new DbfFieldFormatter(Read, Write);
 
                 static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
-                    ReadRaw(source, context.Encoding) is { } l ? unchecked((uint)l) : null;
+                    ReadRawUnsigned(source, context.Encoding) is { } l ? checked((uint)l) : null;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
-                    WriteRaw(target, (uint?)value, context.Encoding);
+                    WriteRaw(target, (ulong?)(uint?)value, context.Encoding);
             }
 
             if (propertyType == typeof(long))
@@ -149,10 +192,10 @@ internal static class DbfFieldNumericFormatter
                 return new DbfFieldFormatter(Read, Write);
 
                 static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
-                    ReadRaw(source, context.Encoding) is { } l ? unchecked((ulong)l) : 0UL;
+                    ReadRawUnsigned(source, context.Encoding) ?? 0UL;
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
-                    WriteRaw(target, unchecked((long?)(ulong?)value), context.Encoding);
+                    WriteRaw(target, (ulong?)value, context.Encoding);
             }
 
             if (propertyType == typeof(ulong?))
@@ -160,10 +203,10 @@ internal static class DbfFieldNumericFormatter
                 return new DbfFieldFormatter(Read, Write);
 
                 static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
-                    ReadRaw(source, context.Encoding) is { } l ? unchecked((ulong)l) : null;
+                    ReadRawUnsigned(source, context.Encoding);
 
                 static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
-                    WriteRaw(target, unchecked((long?)(ulong?)value), context.Encoding);
+                    WriteRaw(target, (ulong?)value, context.Encoding);
             }
         }
 

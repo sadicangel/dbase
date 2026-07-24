@@ -4,9 +4,9 @@ namespace DBase.Serialization.Fields;
 
 internal static class DbfFieldAutoIncrementFormatter
 {
-    public static long ReadRaw(ReadOnlySpan<byte> source) => BinaryPrimitives.ReadInt64LittleEndian(source);
+    public static int ReadRaw(ReadOnlySpan<byte> source) => BinaryPrimitives.ReadInt32LittleEndian(source);
 
-    public static void WriteRaw(Span<byte> target, long value) => BinaryPrimitives.WriteInt64LittleEndian(target, value);
+    public static void WriteRaw(Span<byte> target, int value) => BinaryPrimitives.WriteInt32LittleEndian(target, value);
 
     public static DbfFieldFormatter Create(Type propertyType)
     {
@@ -14,7 +14,7 @@ internal static class DbfFieldAutoIncrementFormatter
         {
             return new DbfFieldFormatter(Read, Write);
             static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (DbfField)ReadRaw(source);
-            static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, ((DbfField)value!).GetValue<long>());
+            static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, ConvertToInt32(((DbfField)value!).Value));
         }
 
         if (propertyType == typeof(int))
@@ -24,20 +24,57 @@ internal static class DbfFieldAutoIncrementFormatter
             static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, (int)value!);
         }
 
+        if (propertyType == typeof(uint))
+        {
+            return new DbfFieldFormatter(Read, Write);
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => checked((uint)ReadRaw(source));
+            static void Write(Span<byte> source, object? value, DbfSerializationContext _) => WriteRaw(source, ConvertToInt32((uint)value!));
+        }
+
         if (propertyType == typeof(long))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => ReadRaw(source);
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, (long)value!);
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => (long)ReadRaw(source);
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, ConvertToInt32((long)value!));
         }
 
         if (propertyType == typeof(ulong))
         {
             return new DbfFieldFormatter(Read, Write);
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => unchecked((ulong)ReadRaw(source));
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, unchecked((long)(ulong)value!));
+            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) => checked((ulong)ReadRaw(source));
+            static void Write(Span<byte> target, object? value, DbfSerializationContext _) => WriteRaw(target, ConvertToInt32((ulong)value!));
         }
 
-        throw new ArgumentException("AutoIncrement fields must be of a type convertible to Int64", nameof(propertyType));
+        throw new ArgumentException("AutoIncrement fields must be of a type convertible to Int32", nameof(propertyType));
+    }
+
+    private static int ConvertToInt32(object? value) => value switch
+    {
+        null => 0,
+        int i32 => i32,
+        uint u32 => ConvertToInt32(u32),
+        long i64 => ConvertToInt32(i64),
+        ulong u64 => ConvertToInt32(u64),
+        _ => throw new InvalidCastException("AutoIncrement field values must be convertible to Int32.")
+    };
+
+    private static int ConvertToInt32(long value)
+    {
+        if (value is < int.MinValue or > int.MaxValue)
+        {
+            throw new OverflowException($"AutoIncrement value '{value}' does not fit in a 4-byte signed integer field.");
+        }
+
+        return (int)value;
+    }
+
+    private static int ConvertToInt32(ulong value)
+    {
+        if (value > int.MaxValue)
+        {
+            throw new OverflowException($"AutoIncrement value '{value}' does not fit in a 4-byte signed integer field.");
+        }
+
+        return (int)value;
     }
 }
