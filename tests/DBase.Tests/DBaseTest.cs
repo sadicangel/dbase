@@ -8,7 +8,7 @@ namespace DBase.Tests;
 
 public abstract class DBaseTest
 {
-    protected static readonly Lazy<CsvConfiguration> CsvConfiguration = new(() =>
+    protected static readonly Lazy<CsvConfiguration> CsvConfiguration = new Lazy<CsvConfiguration>(() =>
     {
         var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
         culture.DateTimeFormat = (DateTimeFormatInfo)CultureInfo.CreateSpecificCulture("en-GB").DateTimeFormat.Clone();

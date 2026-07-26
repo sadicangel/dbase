@@ -6,9 +6,9 @@ namespace DBase.Tests;
 
 internal sealed class NoLineBreaksStringConverter : TypeConverter<string>
 {
-    private static readonly StringConverter s_stringConverter = new();
+    private static readonly StringConverter s_stringConverter = new StringConverter();
 
-    public static readonly NoLineBreaksStringConverter Instance = new();
+    public static readonly NoLineBreaksStringConverter Instance = new NoLineBreaksStringConverter();
 
     private NoLineBreaksStringConverter() { }
 

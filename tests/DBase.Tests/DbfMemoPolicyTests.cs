@@ -1,4 +1,5 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
+using System.Text;
 
 namespace DBase.Tests;
 
@@ -14,13 +15,13 @@ public class DbfMemoPolicyTests
         { DbfVersion.FoxPro2WithMemo, "fpt" },
     };
 
-    public static TheoryData<DbfVersion> UnsupportedMemoVersions { get; } = new()
-    {
+    public static TheoryData<DbfVersion> UnsupportedMemoVersions { get; } =
+    [
         DbfVersion.DBase03,
         DbfVersion.DBase04,
         DbfVersion.DBase05,
         DbfVersion.DBaseCB,
-    };
+    ];
 
     [Theory]
     [MemberData(nameof(SupportedMemoVersions))]
@@ -71,7 +72,7 @@ public class DbfMemoPolicyTests
 
         using (var source = Dbf.Create(sourcePath, CreateMemoDescriptors(), DbfVersion.FoxPro2WithMemo))
         {
-            source.Add(new DbfRecord(ImmutableArray.Create((DbfField)"FoxPro 2 memo")));
+            source.Add(new DbfRecord((DbfField)"FoxPro 2 memo"));
             source.SaveAs(savedPath);
         }
 
@@ -89,8 +90,29 @@ public class DbfMemoPolicyTests
         Assert.Equal("FoxPro 2 memo", saved.GetRecord(0)[0].GetValue<string>());
     }
 
+    [Fact]
+    public void MemoSave_CopiesFlushedHeaderAndMemoRecords()
+    {
+        using var temp = new TempDirectory();
+        var sourcePath = Path.Combine(temp.Path, "source.dbt");
+        var savedPath = Path.Combine(temp.Path, "saved.dbt");
+        var text = Encoding.ASCII.GetBytes("standalone memo");
+
+        using (var memo = Memo.Create(sourcePath, DbfVersion.DBase83))
+        {
+            memo.Add(MemoRecordType.Memo, text);
+            memo.Save(savedPath);
+        }
+
+        using var saved = Memo.Open(savedPath, DbfVersion.DBase83);
+        var record = saved[saved.FirstIndex];
+
+        Assert.Equal(MemoRecordType.Memo, record.Type);
+        Assert.Equal(text, record.Span.ToArray());
+    }
+
     private static ImmutableArray<DbfFieldDescriptor> CreateMemoDescriptors() =>
-        ImmutableArray.Create(DbfFieldDescriptor.Memo(new DbfFieldName("NOTES")));
+        [DbfFieldDescriptor.Memo(new DbfFieldName("NOTES"))];
 
     private sealed class TempDirectory : IDisposable
     {

@@ -402,9 +402,9 @@ public sealed class Dbf : IDisposable
     private static void ValidateRecordGeometry(in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors)
     {
         var expectedRecordLength = 1;
-        for (var i = 0; i < descriptors.Length; ++i)
+        foreach (var descriptor in descriptors)
         {
-            expectedRecordLength += descriptors[i].Length;
+            expectedRecordLength += descriptor.Length;
         }
 
         if (header.RecordLength != expectedRecordLength)

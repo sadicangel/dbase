@@ -40,4 +40,40 @@ public sealed class RecordGeneratorTests
             File.Delete(Path.ChangeExtension(dbfPath, "fpt"));
         }
     }
+
+    [Fact]
+    public void GenerateClass_BinaryMemoAndNullFlagsFields_UsesSerializerSupportedTypes()
+    {
+        var dbfPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.dbf");
+        try
+        {
+            var descriptors = ImmutableArray.Create(
+                DbfFieldDescriptor.Binary("BinDouble", length: 8),
+                DbfFieldDescriptor.Binary("BinMemo"),
+                DbfFieldDescriptor.Blob("BlobData"),
+                DbfFieldDescriptor.NullFlags("_NullFlags", length: 1),
+                DbfFieldDescriptor.Ole("OleData"),
+                DbfFieldDescriptor.Picture("PicData"));
+
+            using (Dbf.Create(dbfPath, descriptors, DbfVersion.VisualFoxPro))
+            {
+            }
+
+            var source = RecordGenerator.GenerateClass(dbfPath);
+
+            Assert.Contains("public double BinDouble { get; set; }", source);
+            Assert.Contains("public string BinMemo { get; set; }", source);
+            Assert.Contains("public string BlobData { get; set; }", source);
+            Assert.Contains("public string NullFlags { get; set; }", source);
+            Assert.Contains("public string OleData { get; set; }", source);
+            Assert.Contains("public string PicData { get; set; }", source);
+            Assert.DoesNotContain("byte[]", source);
+        }
+        finally
+        {
+            File.Delete(dbfPath);
+            File.Delete(Path.ChangeExtension(dbfPath, "dbt"));
+            File.Delete(Path.ChangeExtension(dbfPath, "fpt"));
+        }
+    }
 }

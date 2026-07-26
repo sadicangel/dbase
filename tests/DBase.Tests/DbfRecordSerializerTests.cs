@@ -10,7 +10,7 @@ public sealed class DbfRecordSerializerTests
         var descriptors = ImmutableArray.Create(DbfFieldDescriptor.Character("Name", 10));
 
         using var source = Dbf.Create(new MemoryStream(), descriptors);
-        source.Add(new DbfRecord(DbfRecordStatus.Deleted, ImmutableArray.Create((DbfField)"gone")));
+        source.Add(new DbfRecord(DbfRecordStatus.Deleted, (DbfField)"gone"));
 
         using var target = Dbf.Create(new MemoryStream(), source.Descriptors, version: source.Version, language: source.Language);
         foreach (var record in source.EnumerateRecords())

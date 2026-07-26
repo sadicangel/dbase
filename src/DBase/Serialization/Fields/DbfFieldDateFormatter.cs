@@ -37,7 +37,7 @@ internal static class DbfFieldDateFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
                 (DbfField)ReadRaw(source, context.Encoding);
 
             static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>

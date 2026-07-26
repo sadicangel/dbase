@@ -27,7 +27,7 @@ public class DbfHeaderValidationTests
     [Fact]
     public void Open_UnsupportedVersion_ThrowsNotSupportedException()
     {
-        using var stream = new MemoryStream([(byte)0x7F]);
+        using var stream = new MemoryStream([0x7F]);
 
         var exception = Assert.Throws<NotSupportedException>(() => Dbf.Open(stream));
 

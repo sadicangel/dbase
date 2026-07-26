@@ -8,7 +8,7 @@ public sealed class DbfFieldDescriptorTests
     [
         default(DbfFieldName),
         new DbfFieldName(new byte[DbfFieldName.Size]),
-        new DbfFieldName(new byte[] { (byte)'A', 0x80 })
+        new DbfFieldName([(byte)'A', 0x80])
     ];
 
     [Fact]
@@ -25,6 +25,49 @@ public sealed class DbfFieldDescriptorTests
         var descriptor = DbfFieldDescriptor.Float("AMOUNT", 8, 2);
 
         Assert.Equal(DbfFieldType.Float, descriptor.Type);
+    }
+
+    [Fact]
+    public void Double_ReturnsDoubleType()
+    {
+        var descriptor = DbfFieldDescriptor.Double("AMOUNT");
+
+        Assert.Equal(DbfFieldType.Double, descriptor.Type);
+        Assert.Equal((byte)8, descriptor.Length);
+    }
+
+    [Fact]
+    public void Int32_ReturnsInt32Type()
+    {
+        var descriptor = DbfFieldDescriptor.Int32("COUNT");
+
+        Assert.Equal(DbfFieldType.Int32, descriptor.Type);
+        Assert.Equal((byte)4, descriptor.Length);
+    }
+
+    [Fact]
+    public void Timestamp_ReturnsTimestampType()
+    {
+        var descriptor = DbfFieldDescriptor.Timestamp("STAMP");
+
+        Assert.Equal(DbfFieldType.Timestamp, descriptor.Type);
+        Assert.Equal((byte)8, descriptor.Length);
+    }
+
+    [Fact]
+    public void Variant_ReturnsVariantType()
+    {
+        var descriptor = DbfFieldDescriptor.Variant("VALUE", 20);
+
+        Assert.Equal(DbfFieldType.Variant, descriptor.Type);
+        Assert.Equal((byte)20, descriptor.Length);
+    }
+
+    [Fact]
+    public void FieldFlags_FormatValues_MatchDescriptorBits()
+    {
+        Assert.Equal(0x00, (byte)DbfFieldFlags.None);
+        Assert.Equal(0x02, (byte)DbfFieldFlags.Nullable);
     }
 
     [Theory]

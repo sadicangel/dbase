@@ -113,7 +113,7 @@ Public (and usually protected) members require XML docs: `<summary>` always, plu
 - Keep diffs small and reviewable.
 - Don't mix refactors with behavior changes.
 - If behavior changes, add/update tests and explain the rationale.
-- Use conventional branch prefixes such as `fix/`, `feature/`, or `chore/`; avoid assistant/tooling branch prefixes.
+- Use descriptive branch names; don't require branch prefixes.
 - Keep branch names, commit messages, PR titles, and PR bodies free of assistant/tooling attribution.
 
 ## When unsure
