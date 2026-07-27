@@ -81,8 +81,11 @@ public abstract class DBaseTest
                 new MemoryStream(),
                 old.Descriptors,
                 old.Memo is not null ? new MemoryStream() : null,
-                old.Version,
-                old.Language);
+                new DbfCreateOptions
+                {
+                    Version = old.Version,
+                    Language = old.Language,
+                });
 
             foreach (var record in old.EnumerateRecords())
                 dbf.Add(record);

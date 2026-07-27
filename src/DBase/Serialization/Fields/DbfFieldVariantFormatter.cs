@@ -9,13 +9,13 @@ internal static class DbfFieldVariantFormatter
 
     public static void WriteRaw(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
     {
-        if (value.Length is 0)
+        target.Fill((byte)' ');
+        if (target.IsEmpty || value.Length is 0)
         {
-            target.Fill((byte)' ');
             return;
         }
 
-        _ = encoding.TryGetBytes(value, target[..^1], out var bytesWritten);
+        var bytesWritten = DbfTextFieldFormatter.WriteTruncated(target[..^1], value, encoding);
         target[^1] = (byte)bytesWritten;
     }
 

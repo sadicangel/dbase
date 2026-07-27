@@ -11,7 +11,7 @@ internal static class DbfFieldCharacterFormatter
         target.Fill((byte)' ');
         if (value.IsEmpty)
             return;
-        _ = encoding.TryGetBytes(value, target, out _);
+        DbfTextFieldFormatter.WriteTruncated(target, value, encoding);
     }
 
     public static DbfFieldFormatter Create(Type propertyType)

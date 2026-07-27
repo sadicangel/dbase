@@ -88,8 +88,7 @@ internal static class DbfFieldMemoFormatter
         {
             Span<char> chars = stackalloc char[10];
             index.TryFormat(chars, out var charsWritten, default, CultureInfo.InvariantCulture);
-            var bytesRequired = encoding.GetByteCount(chars[..charsWritten]);
-            encoding.TryGetBytes(chars[..charsWritten], target[Math.Max(0, 10 - bytesRequired)..], out _);
+            WriteTextMemoIndex(target, chars[..charsWritten], encoding);
         }
 
         using var data = type is MemoRecordType.Memo
@@ -115,11 +114,25 @@ internal static class DbfFieldMemoFormatter
         {
             Span<char> chars = stackalloc char[10];
             index.TryFormat(chars, out var charsWritten, default, CultureInfo.InvariantCulture);
-            var bytesRequired = encoding.GetByteCount(chars[..charsWritten]);
-            encoding.TryGetBytes(chars[..charsWritten], target[Math.Max(0, 10 - bytesRequired)..], out _);
+            WriteTextMemoIndex(target, chars[..charsWritten], encoding);
         }
 
         memo.Add(type, value);
+    }
+
+    private static void WriteTextMemoIndex(Span<byte> target, ReadOnlySpan<char> value, Encoding encoding)
+    {
+        var bytesRequired = encoding.GetByteCount(value);
+        if (bytesRequired > target.Length)
+        {
+            throw new OverflowException($"Memo index requires {bytesRequired} bytes, but the field length is {target.Length} bytes.");
+        }
+
+        var written = DbfTextFieldFormatter.WriteTruncated(target[(target.Length - bytesRequired)..], value, encoding);
+        if (written != bytesRequired)
+        {
+            throw new InvalidOperationException("Memo index could not be encoded completely.");
+        }
     }
 
     public static DbfFieldFormatter Create(Type propertyType, MemoRecordType recordType)
