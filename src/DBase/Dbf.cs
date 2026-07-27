@@ -33,8 +33,12 @@ public sealed class Dbf : IDisposable
     public DbfLanguage Language => _header.Language;
 
     /// <summary>
-    /// Gets the text encoding derived from <see cref="Language"/> and used for character fields.
+    /// Gets the resolved text encoding used for character, varchar, and memo text fields.
     /// </summary>
+    /// <remarks>
+    /// When opened from a path, the encoding is resolved from explicit open options, then a sibling
+    /// <c>.cpg</c> file, then the DBF language-driver marker, then the configured fallback encoding.
+    /// </remarks>
     public Encoding Encoding { get; }
 
     /// <summary>
@@ -100,15 +104,22 @@ public sealed class Dbf : IDisposable
     /// </remarks>
     public DbfRecord this[int index] => GetRecord(index);
 
-    private Dbf(Stream dbf, in DbfHeader header, ImmutableArray<DbfFieldDescriptor> descriptors, Memo? memo, DbcBacklink dbcBacklink)
+    private Dbf(
+        Stream dbf,
+        in DbfHeader header,
+        ImmutableArray<DbfFieldDescriptor> descriptors,
+        Memo? memo,
+        DbcBacklink dbcBacklink,
+        Encoding encoding)
     {
         _dbf = dbf;
         _header = header;
         Descriptors = descriptors;
         descriptors.EnsureFieldOffsets();
 
-        Encoding = _header.Language.GetEncoding();
-        DecimalSeparator = _header.Language.GetDecimalSeparator();
+        Encoding = encoding;
+        DecimalSeparator = DbfLanguageExtensions.TryGetDecimalSeparator(_header.Language) ??
+            DbfLanguage.Ansi.GetDecimalSeparator();
         DbcBacklink = dbcBacklink;
 
         Memo = memo;
@@ -118,13 +129,18 @@ public sealed class Dbf : IDisposable
     /// Opens an existing dBASE database file.
     /// </summary>
     /// <param name="fileName">The name of the file to open.</param>
+    /// <param name="options">Optional settings that control text encoding resolution.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     /// <remarks>
     /// This method opens a sibling memo file when the DBF version maps to a supported memo format and the
-    /// expected memo extension exists.
+    /// expected memo extension exists. Text encoding precedence is explicit <paramref name="options"/>,
+    /// sibling <c>.cpg</c> file, DBF language-driver marker, then <see cref="DbfOpenOptions.FallbackEncoding"/>.
     /// </remarks>
-    public static Dbf Open(string fileName)
+    public static Dbf Open(string fileName, DbfOpenOptions? options = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        options ??= new DbfOpenOptions();
+
         FileStream? dbf = null;
         FileStream? memo = null;
 
@@ -132,6 +148,9 @@ public sealed class Dbf : IDisposable
         {
             dbf = new FileStream(fileName, FileMode.Open, FileAccess.ReadWrite);
             var header = ReadHeader(dbf);
+            var encoding = options.Encoding ??
+                DbfEncoding.TryReadCodePageFile(fileName) ??
+                DbfEncoding.Resolve(header.Language, options.FallbackEncoding);
             dbf.Position = 0;
 
             if (header.Version.HasSupportedMemo())
@@ -140,7 +159,7 @@ public sealed class Dbf : IDisposable
                 memo = File.Exists(memoName) ? new FileStream(memoName, FileMode.Open, FileAccess.ReadWrite) : null;
             }
 
-            var result = Open(dbf, memo);
+            var result = Open(dbf, memo, encoding);
             dbf = null;
             memo = null;
             return result;
@@ -153,7 +172,7 @@ public sealed class Dbf : IDisposable
         }
     }
 
-    internal static Dbf Open(Stream dbf, Stream? memo = null)
+    internal static Dbf Open(Stream dbf, Stream? memo, Encoding? encoding)
     {
         ArgumentNullException.ThrowIfNull(dbf);
 
@@ -169,7 +188,8 @@ public sealed class Dbf : IDisposable
             in header,
             descriptors,
             memo is not null ? Memo.Open(memo, header.Version) : null,
-            dbcBacklink);
+            dbcBacklink,
+            encoding ?? DbfEncoding.Resolve(header.Language, DbfEncoding.DefaultFallbackEncoding));
     }
 
     /// <summary>
@@ -177,27 +197,28 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="fileName">The name of the file to create.</param>
     /// <param name="descriptors">The field descriptors that define the record structure.</param>
-    /// <param name="version">
-    /// The version of the dBASE database file, or <see cref="DbfVersion.Unspecified"/> to infer it from
-    /// <paramref name="descriptors"/>.
-    /// </param>
-    /// <param name="language">The language of the dBASE database file.</param>
+    /// <param name="options">Optional settings that control the DBF version, language marker, and text encoding.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     /// <remarks>
     /// A memo file is created automatically when the schema contains memo-backed fields. The memo extension
     /// and on-disk format are selected from the resolved DBF version.
     /// </remarks>
     /// <exception cref="NotSupportedException">
-    /// The schema contains memo-backed fields, but <paramref name="version"/> does not have a supported
-    /// memo file format; or <paramref name="version"/> is <see cref="DbfVersion.Unspecified"/> and no
-    /// supported version can be inferred from <paramref name="descriptors"/>.
+    /// The schema contains memo-backed fields, but <see cref="DbfCreateOptions.Version"/> does not have a
+    /// supported memo file format; or <see cref="DbfCreateOptions.Version"/> is
+    /// <see cref="DbfVersion.Unspecified"/> and no supported version can be inferred from
+    /// <paramref name="descriptors"/>.
     /// </exception>
     public static Dbf Create(
         string fileName,
         ImmutableArray<DbfFieldDescriptor> descriptors,
-        DbfVersion version = DbfVersion.Unspecified,
-        DbfLanguage language = DbfLanguage.Ansi)
+        DbfCreateOptions? options = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        options ??= new DbfCreateOptions();
+
+        var version = options.Version;
+        var language = options.Language;
         version = descriptors.ResolveVersion(version);
         var memoFileName = descriptors.HasMemoFields()
             ? Path.ChangeExtension(fileName, version.GetMemoFileExtension())
@@ -219,7 +240,7 @@ public sealed class Dbf : IDisposable
                 memo = new FileStream(memoFileName, FileMode.CreateNew, FileAccess.ReadWrite);
             }
 
-            var result = Create(dbf, descriptors, memo, version, language);
+            var result = Create(dbf, descriptors, memo, options);
             dbf = null;
             memo = null;
             return result;
@@ -237,40 +258,40 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <typeparam name="T">The record type used to derive the table schema.</typeparam>
     /// <param name="fileName">The name of the file to create.</param>
-    /// <param name="version">
-    /// The version of the dBASE database file, or <see cref="DbfVersion.Unspecified"/> to infer it from
-    /// the generated field descriptors.
-    /// </param>
-    /// <param name="language">The language/code-page marker written to the DBF header.</param>
+    /// <param name="options">Optional settings that control the DBF version, language marker, and text encoding.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     public static Dbf Create<T>(
         string fileName,
-        DbfVersion version = DbfVersion.Unspecified,
-        DbfLanguage language = DbfLanguage.Ansi)
+        DbfCreateOptions? options = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        options ??= new DbfCreateOptions();
+
         var properties = DbfTypeProperties.GetMappedProperties(typeof(T));
         var descriptors = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(properties.Length);
         foreach (var property in properties)
         {
-            descriptors.Add(DbfFieldDescriptor.FromProperty(property, version));
+            descriptors.Add(DbfFieldDescriptor.FromProperty(property, options.Version));
         }
 
         var resolvedDescriptors = descriptors.MoveToImmutable();
         resolvedDescriptors.EnsureFieldOffsets();
         _ = resolvedDescriptors.GetSerializer<T>();
 
-        return Create(fileName, resolvedDescriptors, version, language);
+        return Create(fileName, resolvedDescriptors, options);
     }
 
     internal static Dbf Create(
         Stream dbf,
         ImmutableArray<DbfFieldDescriptor> descriptors,
         Stream? memo = null,
-        DbfVersion version = DbfVersion.Unspecified,
-        DbfLanguage language = DbfLanguage.Ansi)
+        DbfCreateOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(dbf);
+        options ??= new DbfCreateOptions();
 
+        var version = options.Version;
+        var language = options.Language;
         version = descriptors.ResolveVersion(version);
 
         if (descriptors.HasMemoFields())
@@ -301,7 +322,8 @@ public sealed class Dbf : IDisposable
             in header,
             descriptors,
             memo is not null ? Memo.Create(memo, version) : null,
-            dbcBacklink);
+            dbcBacklink,
+            options.Encoding ?? DbfEncoding.Resolve(language, DbfEncoding.DefaultFallbackEncoding));
     }
 
     /// <summary>

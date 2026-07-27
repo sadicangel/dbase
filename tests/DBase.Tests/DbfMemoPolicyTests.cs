@@ -29,7 +29,7 @@ public class DbfMemoPolicyTests
     {
         using var temp = new TempDirectory();
         var dbfPath = Path.Combine(temp.Path, "table.dbf");
-        using var dbf = Dbf.Create(dbfPath, CreateMemoDescriptors(), version);
+        using var dbf = Dbf.Create(dbfPath, CreateMemoDescriptors(), new DbfCreateOptions { Version = version });
 
         Assert.True(File.Exists(dbfPath));
         Assert.True(File.Exists(Path.ChangeExtension(dbfPath, extension)));
@@ -43,7 +43,8 @@ public class DbfMemoPolicyTests
         using var temp = new TempDirectory();
         var dbfPath = Path.Combine(temp.Path, "table.dbf");
 
-        var exception = Assert.Throws<NotSupportedException>(() => Dbf.Create(dbfPath, CreateMemoDescriptors(), version));
+        var exception = Assert.Throws<NotSupportedException>(
+            () => Dbf.Create(dbfPath, CreateMemoDescriptors(), new DbfCreateOptions { Version = version }));
 
         Assert.Contains("supported memo file format", exception.Message);
         Assert.False(File.Exists(dbfPath));
@@ -70,7 +71,10 @@ public class DbfMemoPolicyTests
         var sourcePath = Path.Combine(temp.Path, "source.dbf");
         var savedPath = Path.Combine(temp.Path, "saved.dbf");
 
-        using (var source = Dbf.Create(sourcePath, CreateMemoDescriptors(), DbfVersion.FoxPro2WithMemo))
+        using (var source = Dbf.Create(
+            sourcePath,
+            CreateMemoDescriptors(),
+            new DbfCreateOptions { Version = DbfVersion.FoxPro2WithMemo }))
         {
             source.Add(new DbfRecord((DbfField)"FoxPro 2 memo"));
             source.SaveAs(savedPath);

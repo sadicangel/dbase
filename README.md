@@ -47,6 +47,15 @@ foreach (var record in dbf.EnumerateRecords<MyRecordType>())
 
 ```
 
+To override DBF text encoding, pass open options:
+
+```cs
+using System.Text;
+using var dbf = Dbf.Open(
+    dbfPath,
+    new DbfOpenOptions { Encoding = Encoding.GetEncoding(1252) });
+```
+
 ### Writing to a .dbf File
 
 ```cs
@@ -63,6 +72,22 @@ dbf.Add(new DbfRecord("Value"));
 // Using a custom type.
 dbf.Add(new MyRecordType { FieldName = "Value" });
 ```
+
+### Text Encoding
+
+When opening a file by path, text encoding is resolved in this order:
+
+1. `DbfOpenOptions.Encoding`
+2. A sibling `.cpg` file
+3. The DBF language-driver byte
+4. `DbfOpenOptions.FallbackEncoding`
+
+The built-in language mapping treats the vague OEM marker as code page 437 and the vague ANSI marker as
+Windows-1252. The default fallback is code page 437.
+
+Text writes for character and Visual FoxPro varchar fields are limited by the field byte length. If an
+encoded value is too wide, it is truncated at a complete encoded character and any remaining bytes are
+space-padded. Numeric, date, and binary fields remain strict about values that do not fit.
 
 ## References
 
