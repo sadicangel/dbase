@@ -12,9 +12,9 @@ public sealed class DbfFieldDescriptorFromPropertyTests
         ?? throw new InvalidOperationException("DbfFieldDescriptor.FromProperty was not found.");
 
     [Theory]
-    [InlineData(nameof(SupportedModel.StringValue), DbfFieldType.Character, 254, 0)]
-    [InlineData(nameof(SupportedModel.CharArrayValue), DbfFieldType.Character, 254, 0)]
-    [InlineData(nameof(SupportedModel.ReadOnlyMemoryCharValue), DbfFieldType.Character, 254, 0)]
+    [InlineData(nameof(SupportedModel.StringValue), DbfFieldType.Character, 100, 0)]
+    [InlineData(nameof(SupportedModel.CharArrayValue), DbfFieldType.Character, 100, 0)]
+    [InlineData(nameof(SupportedModel.ReadOnlyMemoryCharValue), DbfFieldType.Character, 100, 0)]
     [InlineData(nameof(SupportedModel.Int32Value), DbfFieldType.Numeric, 10, 0)]
     [InlineData(nameof(SupportedModel.Int32NullableValue), DbfFieldType.Numeric, 10, 0)]
     [InlineData(nameof(SupportedModel.UInt32Value), DbfFieldType.Numeric, 10, 0)]

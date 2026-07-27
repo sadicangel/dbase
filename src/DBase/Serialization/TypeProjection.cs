@@ -34,7 +34,7 @@ internal readonly record struct TypeProjection<T>
             }
         }
 
-        var properties = type.GetProperties();
+        var properties = DbfTypeProperties.GetMappedProperties(type);
         var constructor = type.GetConstructor([.. properties.Select(x => x.PropertyType)])
             ?? type.GetConstructor(Type.EmptyTypes)
             ?? throw new InvalidOperationException($"Type {type} does not have a parameterless constructor or a constructor with the arguments {string.Join(", ", properties.Select(a => a.PropertyType.ToString()))}");
@@ -90,7 +90,7 @@ internal readonly record struct TypeProjection<T>
             static object?[] DbfRecordValues(T record) => ((DbfRecord)(object)record!).Fields.Cast<object?>().ToArray();
         }
 
-        var properties = type.GetProperties();
+        var properties = DbfTypeProperties.GetMappedProperties(type);
         var instance = Expression.Parameter(type, "instance");
         var array = Expression.NewArrayInit(
             typeof(object),

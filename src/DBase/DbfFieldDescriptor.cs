@@ -16,6 +16,7 @@ namespace DBase;
 public readonly record struct DbfFieldDescriptor
 {
     internal const int Size = 32;
+    private const byte DefaultCharacterLength = 100;
 
     /// <summary>
     /// Gets the field name (DBF ASCII name, typically up to 10 characters).
@@ -414,13 +415,19 @@ public readonly record struct DbfFieldDescriptor
 
     internal static DbfFieldDescriptor FromProperty(PropertyInfo property, DbfVersion version)
     {
+        var fieldAttribute = GetFieldAttribute(property);
+        if (fieldAttribute is not null)
+        {
+            return fieldAttribute.CreateDescriptor(property);
+        }
+
         var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
 
         return propertyType switch
         {
-            not null when propertyType == typeof(string) => Character(property.Name, 254),
-            not null when propertyType == typeof(char[]) => Character(property.Name, 254),
-            not null when propertyType == typeof(ReadOnlyMemory<char>) => Character(property.Name, 254),
+            not null when propertyType == typeof(string) => Character(property.Name, DefaultCharacterLength),
+            not null when propertyType == typeof(char[]) => Character(property.Name, DefaultCharacterLength),
+            not null when propertyType == typeof(ReadOnlyMemory<char>) => Character(property.Name, DefaultCharacterLength),
             not null when propertyType == typeof(int) => Numeric(property.Name, length: 10),
             not null when propertyType == typeof(uint) => Numeric(property.Name, length: 10),
             not null when propertyType == typeof(long) => Numeric(property.Name, length: 20),
@@ -435,5 +442,23 @@ public readonly record struct DbfFieldDescriptor
             not null when propertyType == typeof(DateTimeOffset) && version.IsFoxPro() => DateTime(property.Name),
             _ => throw new ArgumentException($"Unsupported property '{property.Name}' ({property.PropertyType})", nameof(property)),
         };
+    }
+
+    private static DbfFieldAttribute? GetFieldAttribute(PropertyInfo property)
+    {
+        DbfFieldAttribute? fieldAttribute = null;
+        foreach (var attribute in property.GetCustomAttributes<DbfFieldAttribute>(inherit: true))
+        {
+            if (fieldAttribute is not null)
+            {
+                throw new ArgumentException(
+                    $"Property '{property.DeclaringType?.FullName}.{property.Name}' cannot have multiple DBF field attributes.",
+                    nameof(property));
+            }
+
+            fieldAttribute = attribute;
+        }
+
+        return fieldAttribute;
     }
 }
