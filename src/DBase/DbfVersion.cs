@@ -6,9 +6,10 @@
 public enum DbfVersion : byte
 {
     /// <summary>
-    /// Unspecified/unknown marker (<c>0x00</c>).
+    /// Unspecified marker (<c>0x00</c>). When creating a table, requests that the DBF version be inferred
+    /// from the field descriptors.
     /// </summary>
-    Unknown = 0,
+    Unspecified = 0,
 
     /// <summary>
     /// FoxBASE / dBASE II style table (<c>0x02</c>).
