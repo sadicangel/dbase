@@ -178,23 +178,28 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="fileName">The name of the file to create.</param>
     /// <param name="descriptors">The field descriptors that define the record structure.</param>
-    /// <param name="version">The version of the dBASE database file.</param>
+    /// <param name="version">
+    /// The version of the dBASE database file, or <see cref="DbfVersion.Unspecified"/> to infer it from
+    /// <paramref name="descriptors"/>.
+    /// </param>
     /// <param name="language">The language of the dBASE database file.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     /// <remarks>
     /// A memo file is created automatically when the schema contains memo-backed fields. The memo extension
-    /// and on-disk format are selected from <paramref name="version"/>.
+    /// and on-disk format are selected from the resolved DBF version.
     /// </remarks>
     /// <exception cref="NotSupportedException">
     /// The schema contains memo-backed fields, but <paramref name="version"/> does not have a supported
-    /// memo file format.
+    /// memo file format; or <paramref name="version"/> is <see cref="DbfVersion.Unspecified"/> and no
+    /// supported version can be inferred from <paramref name="descriptors"/>.
     /// </exception>
     public static Dbf Create(
         string fileName,
         ImmutableArray<DbfFieldDescriptor> descriptors,
-        DbfVersion version = DbfVersion.DBase03,
+        DbfVersion version = DbfVersion.Unspecified,
         DbfLanguage language = DbfLanguage.Ansi)
     {
+        version = descriptors.ResolveVersion(version);
         var memoFileName = descriptors.HasMemoFields()
             ? Path.ChangeExtension(fileName, version.GetMemoFileExtension())
             : null;
@@ -255,10 +260,12 @@ public sealed class Dbf : IDisposable
         Stream dbf,
         ImmutableArray<DbfFieldDescriptor> descriptors,
         Stream? memo = null,
-        DbfVersion version = DbfVersion.DBase03,
+        DbfVersion version = DbfVersion.Unspecified,
         DbfLanguage language = DbfLanguage.Ansi)
     {
         ArgumentNullException.ThrowIfNull(dbf);
+
+        version = descriptors.ResolveVersion(version);
 
         if (descriptors.HasMemoFields())
         {
@@ -446,7 +453,7 @@ public sealed class Dbf : IDisposable
         var version = (DbfVersion)versionByte;
         dbf.Position = 0;
 
-        if (version is DbfVersion.Unknown || !Enum.IsDefined(version))
+        if (version is DbfVersion.Unspecified || !Enum.IsDefined(version))
         {
             throw new NotSupportedException($"Unsupported DBF version '0x{(byte)version:X2}'");
         }
