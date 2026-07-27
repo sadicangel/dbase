@@ -5,13 +5,21 @@ namespace DBase.Serialization;
 
 internal readonly record struct DbfRecordValues(DbfRecordStatus Status, object?[] Values);
 
-internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor> descriptors)
+internal readonly struct DbfRecordFormatter<T>
 {
-    private readonly ImmutableArray<DbfFieldFormatter> _formatters = CreateFormatters(descriptors);
+    private readonly ImmutableArray<DbfFieldDescriptor> _descriptors;
+    private readonly ImmutableArray<DbfFieldFormatter> _formatters;
+    private readonly ImmutableArray<Type> _propertyTypes;
 
-    public static ImmutableArray<DbfFieldFormatter> CreateFormatters(ImmutableArray<DbfFieldDescriptor> descriptors)
+    public DbfRecordFormatter(ImmutableArray<DbfFieldDescriptor> descriptors)
     {
-        var propertyTypes = descriptors.GetPropertyTypes<T>();
+        _descriptors = descriptors;
+        _propertyTypes = descriptors.GetPropertyTypes<T>();
+        _formatters = CreateFormatters(descriptors, _propertyTypes);
+    }
+
+    public static ImmutableArray<DbfFieldFormatter> CreateFormatters(ImmutableArray<DbfFieldDescriptor> descriptors, ImmutableArray<Type> propertyTypes)
+    {
         var formatters = ImmutableArray.CreateBuilder<DbfFieldFormatter>(descriptors.Length);
         foreach (var (propertyType, descriptor) in propertyTypes.Zip(descriptors))
         {
@@ -25,11 +33,18 @@ internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor
     {
         var status = (DbfRecordStatus)source[0];
 
-        var values = new object?[descriptors.Length];
-        var i = 0;
-        foreach (var (descriptor, reader) in descriptors.Zip(_formatters))
+        var values = new object?[_descriptors.Length];
+        for (var i = 0; i < _descriptors.Length; ++i)
         {
-            values[i++] = reader.Read(source.Slice(descriptor.Offset, descriptor.Length), context);
+            var descriptor = _descriptors[i];
+            try
+            {
+                values[i] = _formatters[i].Read(source.Slice(descriptor.Offset, descriptor.Length), context);
+            }
+            catch (Exception exception) when (exception is not DbfSerializationException)
+            {
+                throw CreateException(context, i, descriptor, exception);
+            }
         }
 
         return new DbfRecordValues(status, values);
@@ -38,9 +53,35 @@ internal readonly struct DbfRecordFormatter<T>(ImmutableArray<DbfFieldDescriptor
     public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, DbfSerializationContext context)
     {
         target[0] = (byte)status;
-        foreach (var (descriptor, writer, value) in descriptors.Zip(_formatters, values))
+        var i = 0;
+        foreach (var (descriptor, writer, value) in _descriptors.Zip(_formatters, values))
         {
-            writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, context);
+            try
+            {
+                writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, context);
+            }
+            catch (Exception exception) when (exception is not DbfSerializationException)
+            {
+                throw CreateException(context, i, descriptor, exception);
+            }
+
+            ++i;
         }
     }
+
+    private DbfSerializationException CreateException(
+        DbfSerializationContext context,
+        int fieldIndex,
+        DbfFieldDescriptor descriptor,
+        Exception exception) =>
+        new(
+            context.Operation,
+            context.RecordIndex,
+            fieldIndex,
+            descriptor,
+            _propertyTypes[fieldIndex],
+            context.RecordType,
+            context.Version,
+            context.Language,
+            exception);
 }
