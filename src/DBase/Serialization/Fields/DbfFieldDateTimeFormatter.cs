@@ -33,10 +33,10 @@ internal static class DbfFieldDateTimeFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 (DbfField)ReadRaw(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, ((DbfField)value!).GetValue<DateTime?>());
         }
 
@@ -44,10 +44,10 @@ internal static class DbfFieldDateTimeFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 ReadRaw(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, (DateTime?)value);
         }
 
@@ -55,13 +55,13 @@ internal static class DbfFieldDateTimeFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext _)
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext _)
             {
                 var dt = ReadRaw(source);
                 return dt is null ? null : new DateTimeOffset(dt.Value);
             }
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, ((DateTimeOffset?)value)?.DateTime);
         }
 

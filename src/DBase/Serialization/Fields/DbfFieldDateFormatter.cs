@@ -37,10 +37,10 @@ internal static class DbfFieldDateFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 (DbfField)ReadRaw(source, context.Encoding);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, ((DbfField)value!).GetValue<DateTime?>(), context.Encoding);
         }
 
@@ -48,10 +48,10 @@ internal static class DbfFieldDateFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, (DateTime?)value, context.Encoding);
         }
 
@@ -59,13 +59,13 @@ internal static class DbfFieldDateFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context)
             {
                 var dt = ReadRaw(source, context.Encoding);
                 return dt is null ? null : DateOnly.FromDateTime(dt.Value);
             }
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, ((DateOnly?)value)?.ToDateTime(TimeOnly.MinValue), context.Encoding);
         }
 

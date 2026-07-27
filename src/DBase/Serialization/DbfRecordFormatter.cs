@@ -29,7 +29,7 @@ internal readonly struct DbfRecordFormatter<T>
         return formatters.MoveToImmutable();
     }
 
-    public DbfRecordValues Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
+    public DbfRecordValues Read(ReadOnlySpan<byte> source, in DbfSerializationContext context)
     {
         var status = (DbfRecordStatus)source[0];
 
@@ -39,18 +39,18 @@ internal readonly struct DbfRecordFormatter<T>
             var descriptor = _descriptors[i];
             try
             {
-                values[i] = _formatters[i].Read(source.Slice(descriptor.Offset, descriptor.Length), context);
+                values[i] = _formatters[i].Read(source.Slice(descriptor.Offset, descriptor.Length), in context);
             }
             catch (Exception exception) when (exception is not DbfSerializationException)
             {
-                throw CreateException(context, i, descriptor, exception);
+                throw CreateException(in context, i, descriptor, exception);
             }
         }
 
         return new DbfRecordValues(status, values);
     }
 
-    public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, DbfSerializationContext context)
+    public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, in DbfSerializationContext context)
     {
         target[0] = (byte)status;
         var i = 0;
@@ -58,11 +58,11 @@ internal readonly struct DbfRecordFormatter<T>
         {
             try
             {
-                writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, context);
+                writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, in context);
             }
             catch (Exception exception) when (exception is not DbfSerializationException)
             {
-                throw CreateException(context, i, descriptor, exception);
+                throw CreateException(in context, i, descriptor, exception);
             }
 
             ++i;
@@ -70,7 +70,7 @@ internal readonly struct DbfRecordFormatter<T>
     }
 
     private DbfSerializationException CreateException(
-        DbfSerializationContext context,
+        in DbfSerializationContext context,
         int fieldIndex,
         DbfFieldDescriptor descriptor,
         Exception exception) =>

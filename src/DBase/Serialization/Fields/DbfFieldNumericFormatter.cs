@@ -114,10 +114,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     (DbfField)ReadRaw(source, context.Encoding);
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, ((DbfField)value!).GetValue<long?>(), context.Encoding);
             }
 
@@ -125,10 +125,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRaw(source, context.Encoding) is { } l ? (int)l : 0;
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (int?)value, context.Encoding);
             }
 
@@ -136,10 +136,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRaw(source, context.Encoding) is { } l ? (int)l : null;
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (int?)value, context.Encoding);
             }
 
@@ -147,10 +147,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRawUnsigned(source, context.Encoding) is { } l ? checked((uint)l) : 0U;
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (ulong?)(uint?)value, context.Encoding);
             }
 
@@ -158,10 +158,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRawUnsigned(source, context.Encoding) is { } l ? checked((uint)l) : null;
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (ulong?)(uint?)value, context.Encoding);
             }
 
@@ -169,10 +169,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRaw(source, context.Encoding) ?? 0L;
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (long?)value, context.Encoding);
             }
 
@@ -180,10 +180,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRaw(source, context.Encoding);
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (long?)value, context.Encoding);
             }
 
@@ -191,10 +191,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRawUnsigned(source, context.Encoding) ?? 0UL;
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (ulong?)value, context.Encoding);
             }
 
@@ -202,10 +202,10 @@ internal static class DbfFieldNumericFormatter
             {
                 return new DbfFieldFormatter(Read, Write);
 
-                static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+                static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                     ReadRawUnsigned(source, context.Encoding);
 
-                static void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+                static void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                     WriteRaw(target, (ulong?)value, context.Encoding);
             }
         }
@@ -214,10 +214,10 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 (DbfField)ReadRaw(source, context.Encoding, context.DecimalSeparator);
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, ((DbfField)value!).GetValue<double?>(), @decimal, context.Encoding, context.DecimalSeparator);
         }
 
@@ -225,10 +225,10 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : 0f;
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, (float?)value, @decimal, context.Encoding, context.DecimalSeparator);
         }
 
@@ -236,10 +236,10 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding, context.DecimalSeparator) is { } d ? (float)d : null;
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, (float?)value, @decimal, context.Encoding, context.DecimalSeparator);
         }
 
@@ -247,10 +247,10 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding, context.DecimalSeparator) ?? 0D;
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, (double?)value, @decimal, context.Encoding, context.DecimalSeparator);
         }
 
@@ -258,10 +258,10 @@ internal static class DbfFieldNumericFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding, context.DecimalSeparator);
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteRaw(target, (double?)value, @decimal, context.Encoding, context.DecimalSeparator);
         }
 
