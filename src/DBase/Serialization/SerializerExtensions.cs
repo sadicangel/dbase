@@ -33,7 +33,7 @@ internal static class SerializerExtensions
                 return Enumerable.Repeat(typeof(DbfField), descriptors.Length);
             }
 
-            var properties = typeof(T).GetProperties();
+            var properties = DbfTypeProperties.GetMappedProperties(typeof(T));
             if (properties.Length != descriptors.Length)
             {
                 // TODO: Improve exception message to include type and missing property names.

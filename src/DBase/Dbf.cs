@@ -1,6 +1,5 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Text;
 using DBase.Interop;
 using DBase.Serialization;
@@ -238,22 +237,29 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <typeparam name="T">The record type used to derive the table schema.</typeparam>
     /// <param name="fileName">The name of the file to create.</param>
-    /// <param name="version">The version of the dBASE database file.</param>
+    /// <param name="version">
+    /// The version of the dBASE database file, or <see cref="DbfVersion.Unspecified"/> to infer it from
+    /// the generated field descriptors.
+    /// </param>
     /// <param name="language">The language/code-page marker written to the DBF header.</param>
     /// <returns>An initialized <see cref="Dbf"/> instance.</returns>
     public static Dbf Create<T>(
         string fileName,
-        DbfVersion version = DbfVersion.DBase03,
+        DbfVersion version = DbfVersion.Unspecified,
         DbfLanguage language = DbfLanguage.Ansi)
     {
-        var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var properties = DbfTypeProperties.GetMappedProperties(typeof(T));
         var descriptors = ImmutableArray.CreateBuilder<DbfFieldDescriptor>(properties.Length);
         foreach (var property in properties)
         {
             descriptors.Add(DbfFieldDescriptor.FromProperty(property, version));
         }
 
-        return Create(fileName, descriptors.MoveToImmutable(), version, language);
+        var resolvedDescriptors = descriptors.MoveToImmutable();
+        resolvedDescriptors.EnsureFieldOffsets();
+        _ = resolvedDescriptors.GetSerializer<T>();
+
+        return Create(fileName, resolvedDescriptors, version, language);
     }
 
     internal static Dbf Create(
