@@ -13,7 +13,14 @@ public sealed class DbfRecordSerializerTests
         using var source = Dbf.Create(new MemoryStream(), descriptors);
         source.Add(new DbfRecord(DbfRecordStatus.Deleted, (DbfField)"gone"));
 
-        using var target = Dbf.Create(new MemoryStream(), source.Descriptors, version: source.Version, language: source.Language);
+        using var target = Dbf.Create(
+            new MemoryStream(),
+            source.Descriptors,
+            options: new DbfCreateOptions
+            {
+                Version = source.Version,
+                Language = source.Language,
+            });
         foreach (var record in source.EnumerateRecords())
         {
             target.Add(record);
@@ -54,7 +61,7 @@ public sealed class DbfRecordSerializerTests
 
         try
         {
-            using (var source = Dbf.Create<NullableCurrencyRecord>(dbfPath, DbfVersion.VisualFoxPro))
+            using (var source = Dbf.Create<NullableCurrencyRecord>(dbfPath, new DbfCreateOptions { Version = DbfVersion.VisualFoxPro }))
             {
                 source.Add(new NullableCurrencyRecord { Amount = 12.34m });
             }
@@ -77,7 +84,7 @@ public sealed class DbfRecordSerializerTests
 
         try
         {
-            using var source = Dbf.Create<NullableCurrencyRecord>(dbfPath, DbfVersion.VisualFoxPro);
+            using var source = Dbf.Create<NullableCurrencyRecord>(dbfPath, new DbfCreateOptions { Version = DbfVersion.VisualFoxPro });
 
             var exception = Assert.Throws<DbfSerializationException>(
                 () => source.Add(new NullableCurrencyRecord { Amount = null }));
@@ -105,7 +112,11 @@ public sealed class DbfRecordSerializerTests
             DbfFieldDescriptor.Blob("Payload"),
             DbfFieldDescriptor.NullFlags("_NullFlags", 1));
 
-        using var source = Dbf.Create(new MemoryStream(), descriptors, new MemoryStream(), DbfVersion.VisualFoxPro);
+        using var source = Dbf.Create(
+            new MemoryStream(),
+            descriptors,
+            new MemoryStream(),
+            new DbfCreateOptions { Version = DbfVersion.VisualFoxPro });
         source.Add(new GeneratedBinaryLikeRecord
         {
             Fixed = fixedValue,
@@ -119,7 +130,7 @@ public sealed class DbfRecordSerializerTests
         dbfBytes.Position = 0;
         memoBytes.Position = 0;
 
-        using var reopened = Dbf.Open(dbfBytes, memoBytes);
+        using var reopened = Dbf.Open(dbfBytes, memoBytes, null);
         var actual = reopened.GetRecord<GeneratedBinaryLikeRecord>(0);
 
         Assert.Equal(fixedValue, actual.Fixed);

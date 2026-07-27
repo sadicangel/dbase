@@ -30,8 +30,11 @@ public abstract class DBaseTest<T> : DBaseTest
                 new MemoryStream(),
                 old.Descriptors,
                 old.Memo is not null ? new MemoryStream() : null,
-                old.Version,
-                old.Language);
+                new DbfCreateOptions
+                {
+                    Version = old.Version,
+                    Language = old.Language,
+                });
 
             foreach (var record in old.EnumerateRecords<T>())
                 dbf.Add(record);
@@ -82,8 +85,11 @@ public abstract class DBaseTest<T> : DBaseTest
             new MemoryStream(),
             source.Descriptors,
             source.Memo is not null ? new MemoryStream() : null,
-            source.Version,
-            source.Language);
+            new DbfCreateOptions
+            {
+                Version = source.Version,
+                Language = source.Language,
+            });
 
         foreach (var record in source.EnumerateRecords<T>())
             target.Add(record);

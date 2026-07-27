@@ -9,7 +9,7 @@ public class DbfHeaderValidationTests
     {
         using var stream = new MemoryStream();
 
-        var exception = Assert.Throws<EndOfStreamException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<EndOfStreamException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("header", exception.Message);
     }
@@ -21,7 +21,7 @@ public class DbfHeaderValidationTests
         bytes[0] = (byte)DbfVersion.DBase03;
         using var stream = new MemoryStream(bytes);
 
-        Assert.Throws<EndOfStreamException>(() => Dbf.Open(stream));
+        Assert.Throws<EndOfStreamException>(() => Dbf.Open(stream, null, null));
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class DbfHeaderValidationTests
     {
         using var stream = new MemoryStream([0x7F]);
 
-        var exception = Assert.Throws<NotSupportedException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<NotSupportedException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("0x7F", exception.Message);
     }
@@ -41,7 +41,7 @@ public class DbfHeaderValidationTests
         WriteCharacterDescriptor(bytes, DbfHeader.Size, length: 1);
         using var stream = new MemoryStream(bytes);
 
-        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("terminator", exception.Message);
     }
@@ -53,7 +53,7 @@ public class DbfHeaderValidationTests
         bytes[DbfHeader.Size] = (byte)'F';
         using var stream = new MemoryStream(bytes);
 
-        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("descriptor", exception.Message);
     }
@@ -66,7 +66,7 @@ public class DbfHeaderValidationTests
         bytes[DbfHeader.Size + DbfFieldDescriptor.Size] = 0x0D;
         using var stream = new MemoryStream(bytes);
 
-        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("header length", exception.Message);
     }
@@ -80,7 +80,7 @@ public class DbfHeaderValidationTests
         bytes[DbfHeader.Size + DbfFieldDescriptor.Size + 1] = 0x0D;
         using var stream = new MemoryStream(bytes);
 
-        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("descriptor", exception.Message);
     }
@@ -93,7 +93,7 @@ public class DbfHeaderValidationTests
         bytes[DbfHeader.Size + DbfFieldDescriptor.Size] = 0x0D;
         using var stream = new MemoryStream(bytes);
 
-        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<InvalidDataException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("record length", exception.Message);
     }
@@ -105,7 +105,7 @@ public class DbfHeaderValidationTests
         bytes[DbfHeader.Size] = 0x0D;
         using var stream = new MemoryStream(bytes);
 
-        var exception = Assert.Throws<EndOfStreamException>(() => Dbf.Open(stream));
+        var exception = Assert.Throws<EndOfStreamException>(() => Dbf.Open(stream, null, null));
 
         Assert.Contains("records", exception.Message);
     }

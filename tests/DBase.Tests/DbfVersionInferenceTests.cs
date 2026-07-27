@@ -108,7 +108,7 @@ public sealed class DbfVersionInferenceTests
         using var dbf = Dbf.Create(
             new MemoryStream(),
             Fields(DbfFieldDescriptor.Currency("AMOUNT")),
-            version: DbfVersion.DBase03);
+            options: new DbfCreateOptions { Version = DbfVersion.DBase03 });
 
         Assert.Equal(DbfVersion.DBase03, dbf.Version);
     }

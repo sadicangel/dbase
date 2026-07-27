@@ -19,7 +19,7 @@ public sealed class RecordGeneratorTests
                 DbfFieldDescriptor.Ole("OleData"),
                 DbfFieldDescriptor.Picture("PicData"));
 
-            using (Dbf.Create(dbfPath, descriptors, DbfVersion.VisualFoxPro))
+            using (Dbf.Create(dbfPath, descriptors, new DbfCreateOptions { Version = DbfVersion.VisualFoxPro }))
             {
             }
 
@@ -55,7 +55,7 @@ public sealed class RecordGeneratorTests
                 DbfFieldDescriptor.Ole("OleData"),
                 DbfFieldDescriptor.Picture("PicData"));
 
-            using (Dbf.Create(dbfPath, descriptors, DbfVersion.VisualFoxPro))
+            using (Dbf.Create(dbfPath, descriptors, new DbfCreateOptions { Version = DbfVersion.VisualFoxPro }))
             {
             }
 
