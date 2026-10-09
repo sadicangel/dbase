@@ -35,7 +35,7 @@ internal static class DbfFieldMemoFormatter
         return writer.WrittenSpan;
     }
 
-    private static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
+    internal static string ReadMemo(ReadOnlySpan<byte> source, MemoRecordType type, Encoding encoding, Memo? memo)
     {
         if (memo is null || source is [])
             return string.Empty;
@@ -72,7 +72,7 @@ internal static class DbfFieldMemoFormatter
         }
     }
 
-    private static void WriteMemo(Span<byte> target, MemoRecordType type, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
+    internal static void WriteMemo(Span<byte> target, MemoRecordType type, ReadOnlySpan<char> value, Encoding encoding, Memo? memo)
     {
         target.Fill(target.Length is 4 ? (byte)0 : (byte)' ');
         if (memo is null || value.Length is 0)

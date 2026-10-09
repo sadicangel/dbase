@@ -34,17 +34,18 @@ internal readonly struct DbfRecordFormatter<T>
         var status = (DbfRecordStatus)source[0];
 
         var values = new object?[_descriptors.Length];
-        for (var i = 0; i < _descriptors.Length; ++i)
+        var i = 0;
+        try
         {
-            var descriptor = _descriptors[i];
-            try
+            for (; i < _descriptors.Length; i++)
             {
+                var descriptor = _descriptors[i];
                 values[i] = _formatters[i].Read(source.Slice(descriptor.Offset, descriptor.Length), in context);
             }
-            catch (Exception exception) when (exception is not DbfSerializationException)
-            {
-                throw CreateException(in context, i, descriptor, exception);
-            }
+        }
+        catch (Exception exception) when (DbfSerializationContext.IsFieldError(exception))
+        {
+            throw context.CreateException(i, _descriptors[i], _propertyTypes[i], exception);
         }
 
         return new DbfRecordValues(status, values);
@@ -53,35 +54,20 @@ internal readonly struct DbfRecordFormatter<T>
     public void Write(Span<byte> target, DbfRecordStatus status, object?[] values, in DbfSerializationContext context)
     {
         target[0] = (byte)status;
+        // Preserve the existing Zip behavior when fewer values than descriptors are supplied.
+        var count = Math.Min(_descriptors.Length, values.Length);
         var i = 0;
-        foreach (var (descriptor, writer, value) in _descriptors.Zip(_formatters, values))
+        try
         {
-            try
+            for (; i < count; i++)
             {
-                writer.Write(target.Slice(descriptor.Offset, descriptor.Length), value, in context);
+                var descriptor = _descriptors[i];
+                _formatters[i].Write(target.Slice(descriptor.Offset, descriptor.Length), values[i], in context);
             }
-            catch (Exception exception) when (exception is not DbfSerializationException)
-            {
-                throw CreateException(in context, i, descriptor, exception);
-            }
-
-            ++i;
+        }
+        catch (Exception exception) when (DbfSerializationContext.IsFieldError(exception))
+        {
+            throw context.CreateException(i, _descriptors[i], _propertyTypes[i], exception);
         }
     }
-
-    private DbfSerializationException CreateException(
-        in DbfSerializationContext context,
-        int fieldIndex,
-        DbfFieldDescriptor descriptor,
-        Exception exception) =>
-        new(
-            context.Operation,
-            context.RecordIndex,
-            fieldIndex,
-            descriptor,
-            _propertyTypes[fieldIndex],
-            context.RecordType,
-            context.Version,
-            context.Language,
-            exception);
 }

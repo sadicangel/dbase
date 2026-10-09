@@ -6,6 +6,7 @@ namespace DBase;
 /// <remarks>
 /// The exception preserves the original formatter failure in <see cref="Exception.InnerException"/> and
 /// adds record, field, schema, and target CLR type details for diagnostics.
+/// Cancellation and unexpected runtime failures are not wrapped.
 /// </remarks>
 public sealed class DbfSerializationException : Exception
 {
@@ -64,6 +65,9 @@ public sealed class DbfSerializationException : Exception
     /// <summary>
     /// Gets the CLR field value type used by the formatter.
     /// </summary>
+    /// <remarks>
+    /// For an untyped <see cref="DbfRecord"/>, this is <see cref="DbfField"/>.
+    /// </remarks>
     public Type TargetClrType { get; }
 
     /// <summary>

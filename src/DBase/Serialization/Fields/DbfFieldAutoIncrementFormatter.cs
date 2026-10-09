@@ -14,7 +14,7 @@ internal static class DbfFieldAutoIncrementFormatter
         {
             return new DbfFieldFormatter(Read, Write);
             static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) => (DbfField)ReadRaw(source);
-            static void Write(Span<byte> source, object? value, in DbfSerializationContext _) => WriteRaw(source, ConvertToInt32(((DbfField)value!).Value));
+            static void Write(Span<byte> source, object? value, in DbfSerializationContext _) => WriteRaw(source, ConvertToInt32((DbfField)value!));
         }
 
         if (propertyType == typeof(int))
@@ -48,13 +48,11 @@ internal static class DbfFieldAutoIncrementFormatter
         throw new ArgumentException("AutoIncrement fields must be of a type convertible to Int32", nameof(propertyType));
     }
 
-    private static int ConvertToInt32(object? value) => value switch
+    internal static int ConvertToInt32(DbfField value) => value switch
     {
         null => 0,
         int i32 => i32,
-        uint u32 => ConvertToInt32(u32),
         long i64 => ConvertToInt32(i64),
-        ulong u64 => ConvertToInt32(u64),
         _ => throw new InvalidCastException("AutoIncrement field values must be convertible to Int32.")
     };
 
