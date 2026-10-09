@@ -27,10 +27,10 @@ internal static class DbfFieldDoubleFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 (DbfField)ReadRaw(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, ((DbfField)value!).GetValue<double>());
         }
 
@@ -38,10 +38,10 @@ internal static class DbfFieldDoubleFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 ReadRaw(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, (double)value!);
         }
 
@@ -49,10 +49,10 @@ internal static class DbfFieldDoubleFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 ReadBytes(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteBytes(target, (byte[]?)value);
         }
 

@@ -26,21 +26,23 @@ internal static class SerializerExtensions
             }
         }
 
-        public IEnumerable<Type> GetPropertyTypes<T>()
+        public ImmutableArray<Type> GetPropertyTypes<T>()
         {
             if (typeof(T) == typeof(DbfRecord))
             {
-                return Enumerable.Repeat(typeof(DbfField), descriptors.Length);
+                return ImmutableArray.CreateRange(Enumerable.Repeat(typeof(DbfField), descriptors.Length));
             }
 
             var properties = DbfTypeProperties.GetMappedProperties(typeof(T));
             if (properties.Length != descriptors.Length)
             {
-                // TODO: Improve exception message to include type and missing property names.
-                throw new InvalidOperationException($"The number of properties does not match the number of field descriptors. Expected: {descriptors.Length}, Actual: {properties.Length}");
+                throw new InvalidOperationException(
+                    $"The number of mapped properties on target record type '{typeof(T).FullName}' does not match the number of field descriptors. " +
+                    $"Field descriptors ({descriptors.Length}): [{string.Join(", ", descriptors.Select(static descriptor => descriptor.Name.ToString()))}]. " +
+                    $"Mapped properties ({properties.Length}): [{string.Join(", ", properties.Select(static property => property.Name))}].");
             }
 
-            return properties.Select(x => x.PropertyType);
+            return ImmutableArray.CreateRange(properties.Select(static property => property.PropertyType));
         }
     }
 }

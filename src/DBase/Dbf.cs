@@ -700,7 +700,8 @@ public sealed class Dbf : IDisposable
             return false;
         }
 
-        record = Descriptors.GetSerializer<T>().Deserialize(buffer.Span, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
+        var context = CreateSerializationContext<T>(DbfSerializationOperation.Read, recordIndex);
+        record = Descriptors.GetSerializer<T>().Deserialize(buffer.Span, in context);
 
         return true;
     }
@@ -715,9 +716,13 @@ public sealed class Dbf : IDisposable
             ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
             : new SpanOwner<byte>(_header.RecordLength);
 
-        Descriptors.GetSerializer<T>().Serialize(buffer.Span, record, new DbfSerializationContext(Encoding, Memo, DecimalSeparator));
+        var context = CreateSerializationContext<T>(DbfSerializationOperation.Write, index);
+        Descriptors.GetSerializer<T>().Serialize(buffer.Span, record, in context);
         _dbf.Write(buffer.Span);
 
         RecordCount = Math.Max(RecordCount, index + 1);
     }
+
+    private DbfSerializationContext CreateSerializationContext<T>(DbfSerializationOperation operation, int recordIndex) =>
+        new(Encoding, Memo, DecimalSeparator, operation, recordIndex, Version, Language, typeof(T));
 }

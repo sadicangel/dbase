@@ -141,10 +141,10 @@ internal static class DbfFieldMemoFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 (DbfField)ReadMemo(source, recordType, context.Encoding, context.Memo);
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteMemo(target, recordType, ((DbfField)value!).GetValue<string>(), context.Encoding, context.Memo);
         }
 
@@ -152,10 +152,10 @@ internal static class DbfFieldMemoFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadMemo(source, recordType, context.Encoding, context.Memo);
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteMemo(target, recordType, (string?)value, context.Encoding, context.Memo);
         }
 
@@ -163,10 +163,10 @@ internal static class DbfFieldMemoFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadMemo(source, recordType, context.Encoding, context.Memo).ToCharArray();
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteMemo(target, recordType, (char[]?)value, context.Encoding, context.Memo);
         }
 
@@ -174,10 +174,10 @@ internal static class DbfFieldMemoFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadMemo(source, recordType, context.Encoding, context.Memo).AsMemory();
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteMemo(target, recordType, ((ReadOnlyMemory<char>)value!).Span, context.Encoding, context.Memo);
         }
 
@@ -185,10 +185,10 @@ internal static class DbfFieldMemoFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadMemoBytes(source, context.Encoding, context.Memo);
 
-            void Write(Span<byte> target, object? value, DbfSerializationContext context) =>
+            void Write(Span<byte> target, object? value, in DbfSerializationContext context) =>
                 WriteMemoBytes(target, recordType, (byte[]?)value, context.Encoding, context.Memo);
         }
 

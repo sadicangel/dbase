@@ -16,10 +16,10 @@ internal static class DbfFieldInt32Formatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 (DbfField)ReadRaw(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, ((DbfField)value!).GetValue<int>());
         }
 
@@ -27,10 +27,10 @@ internal static class DbfFieldInt32Formatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 ReadRaw(source);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, (int)value!);
         }
 
@@ -38,10 +38,10 @@ internal static class DbfFieldInt32Formatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext _) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext _) =>
                 unchecked((uint)ReadRaw(source));
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, unchecked((int)(uint)value!));
         }
 

@@ -28,10 +28,10 @@ internal static class DbfFieldLogicalFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 (DbfField)ReadRaw(source, context.Encoding);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, ((DbfField)value!).GetValue<bool?>());
         }
 
@@ -39,10 +39,10 @@ internal static class DbfFieldLogicalFormatter
         {
             return new DbfFieldFormatter(Read, Write);
 
-            static object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) =>
+            static object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) =>
                 ReadRaw(source, context.Encoding);
 
-            static void Write(Span<byte> target, object? value, DbfSerializationContext _) =>
+            static void Write(Span<byte> target, object? value, in DbfSerializationContext _) =>
                 WriteRaw(target, (bool?)value);
         }
 

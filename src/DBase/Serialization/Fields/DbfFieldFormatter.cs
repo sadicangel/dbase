@@ -1,14 +1,14 @@
 ﻿namespace DBase.Serialization.Fields;
 
-internal delegate object? ReadValue(ReadOnlySpan<byte> source, DbfSerializationContext context);
+internal delegate object? ReadValue(ReadOnlySpan<byte> source, in DbfSerializationContext context);
 
-internal delegate void WriteValue(Span<byte> target, object? value, DbfSerializationContext context);
+internal delegate void WriteValue(Span<byte> target, object? value, in DbfSerializationContext context);
 
 internal readonly struct DbfFieldFormatter(ReadValue read, WriteValue write)
 {
-    public object? Read(ReadOnlySpan<byte> source, DbfSerializationContext context) => read(source, context);
+    public object? Read(ReadOnlySpan<byte> source, in DbfSerializationContext context) => read(source, in context);
 
-    public void Write(Span<byte> target, object? value, DbfSerializationContext context) => write(target, value, context);
+    public void Write(Span<byte> target, object? value, in DbfSerializationContext context) => write(target, value, in context);
 
     public static DbfFieldFormatter Create(Type propertyType, DbfFieldDescriptor descriptor)
     {

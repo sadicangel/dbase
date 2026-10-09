@@ -15,17 +15,18 @@ internal readonly struct DbfRecordFieldFormatter(ImmutableArray<DbfFieldDescript
     /// <param name="source">The bytes containing the record status and field data.</param>
     /// <param name="context">The serialization context.</param>
     /// <returns>The deserialized record.</returns>
-    public DbfRecord Read(ReadOnlySpan<byte> source, DbfSerializationContext context)
+    public DbfRecord Read(ReadOnlySpan<byte> source, in DbfSerializationContext context)
     {
+        var status = (DbfRecordStatus)source[0];
         var fields = new DbfField[descriptors.Length];
+        // Keep exception handling in the field helper and write directly into the output array.
         for (var i = 0; i < descriptors.Length; i++)
         {
-            var descriptor = descriptors[i];
-            fields[i] = ReadField(source.Slice(descriptor.Offset, descriptor.Length), descriptor, context);
+            ReadField(source, descriptors[i], in context, i, out fields[i]);
         }
 
         // The freshly allocated array is owned exclusively by the returned immutable record.
-        return new DbfRecord((DbfRecordStatus)source[0], ImmutableCollectionsMarshal.AsImmutableArray(fields));
+        return new DbfRecord(status, ImmutableCollectionsMarshal.AsImmutableArray(fields));
     }
 
     /// <summary>
@@ -34,43 +35,63 @@ internal readonly struct DbfRecordFieldFormatter(ImmutableArray<DbfFieldDescript
     /// <param name="target">The destination for the record status and field data.</param>
     /// <param name="record">The record to serialize.</param>
     /// <param name="context">The serialization context.</param>
-    public void Write(Span<byte> target, DbfRecord record, DbfSerializationContext context)
+    public void Write(Span<byte> target, DbfRecord record, in DbfSerializationContext context)
     {
         target[0] = (byte)record.Status;
         // Preserve the existing formatter's Zip behavior for records with fewer fields than descriptors.
         var count = Math.Min(descriptors.Length, record.Count);
-        for (var i = 0; i < count; i++)
+        var i = 0;
+        try
         {
-            var descriptor = descriptors[i];
-            WriteField(target.Slice(descriptor.Offset, descriptor.Length), record[i], descriptor, context);
+            for (; i < count; i++)
+            {
+                var descriptor = descriptors[i];
+                WriteField(target.Slice(descriptor.Offset, descriptor.Length), record[i], descriptor, in context);
+            }
+        }
+        catch (Exception exception) when (DbfSerializationContext.IsFieldError(exception))
+        {
+            throw context.CreateException(i, descriptors[i], typeof(DbfField), exception);
         }
     }
 
-    private static DbfField ReadField(ReadOnlySpan<byte> source, DbfFieldDescriptor descriptor, DbfSerializationContext context) => descriptor.Type switch
+    private static void ReadField(ReadOnlySpan<byte> record, DbfFieldDescriptor descriptor,
+        in DbfSerializationContext context, int fieldIndex, out DbfField value)
     {
-        DbfFieldType.AutoIncrement => DbfFieldAutoIncrementFormatter.ReadRaw(source),
-        DbfFieldType.Binary when descriptor.Length == 8 => DbfFieldDoubleFormatter.ReadRaw(source),
-        DbfFieldType.Binary or DbfFieldType.Blob or DbfFieldType.Ole =>
-            DbfFieldMemoFormatter.ReadMemo(source, MemoRecordType.Object, context.Encoding, context.Memo),
-        DbfFieldType.Character => DbfFieldCharacterFormatter.ReadRaw(source, context.Encoding),
-        DbfFieldType.Currency => DbfFieldCurrencyFormatter.ReadRaw(source),
-        DbfFieldType.Date => DbfFieldDateFormatter.ReadRaw(source, context.Encoding),
-        DbfFieldType.DateTime or DbfFieldType.Timestamp => DbfFieldDateTimeFormatter.ReadRaw(source),
-        DbfFieldType.Double => DbfFieldDoubleFormatter.ReadRaw(source),
-        DbfFieldType.Float or DbfFieldType.Numeric when descriptor.Decimal == 0 =>
-            DbfFieldNumericFormatter.ReadRaw(source, context.Encoding),
-        DbfFieldType.Float or DbfFieldType.Numeric =>
-            DbfFieldNumericFormatter.ReadRaw(source, context.Encoding, context.DecimalSeparator),
-        DbfFieldType.Int32 => DbfFieldInt32Formatter.ReadRaw(source),
-        DbfFieldType.Logical => DbfFieldLogicalFormatter.ReadRaw(source, context.Encoding),
-        DbfFieldType.Memo => DbfFieldMemoFormatter.ReadMemo(source, MemoRecordType.Memo, context.Encoding, context.Memo),
-        DbfFieldType.NullFlags => DbfFieldNullFlagsFormatter.ReadRaw(source),
-        DbfFieldType.Picture => DbfFieldMemoFormatter.ReadMemo(source, MemoRecordType.Picture, context.Encoding, context.Memo),
-        DbfFieldType.Variant => DbfFieldVariantFormatter.ReadRaw(source, context.Encoding),
-        _ => throw new NotSupportedException($"Field type '{descriptor.Type}' is not supported.")
-    };
+        try
+        {
+            var source = record.Slice(descriptor.Offset, descriptor.Length);
+            value = descriptor.Type switch
+            {
+                DbfFieldType.AutoIncrement => DbfFieldAutoIncrementFormatter.ReadRaw(source),
+                DbfFieldType.Binary when descriptor.Length == 8 => DbfFieldDoubleFormatter.ReadRaw(source),
+                DbfFieldType.Binary or DbfFieldType.Blob or DbfFieldType.Ole =>
+                    DbfFieldMemoFormatter.ReadMemo(source, MemoRecordType.Object, context.Encoding, context.Memo),
+                DbfFieldType.Character => DbfFieldCharacterFormatter.ReadRaw(source, context.Encoding),
+                DbfFieldType.Currency => DbfFieldCurrencyFormatter.ReadRaw(source),
+                DbfFieldType.Date => DbfFieldDateFormatter.ReadRaw(source, context.Encoding),
+                DbfFieldType.DateTime or DbfFieldType.Timestamp => DbfFieldDateTimeFormatter.ReadRaw(source),
+                DbfFieldType.Double => DbfFieldDoubleFormatter.ReadRaw(source),
+                DbfFieldType.Float or DbfFieldType.Numeric when descriptor.Decimal == 0 =>
+                    DbfFieldNumericFormatter.ReadRaw(source, context.Encoding),
+                DbfFieldType.Float or DbfFieldType.Numeric =>
+                    DbfFieldNumericFormatter.ReadRaw(source, context.Encoding, context.DecimalSeparator),
+                DbfFieldType.Int32 => DbfFieldInt32Formatter.ReadRaw(source),
+                DbfFieldType.Logical => DbfFieldLogicalFormatter.ReadRaw(source, context.Encoding),
+                DbfFieldType.Memo => DbfFieldMemoFormatter.ReadMemo(source, MemoRecordType.Memo, context.Encoding, context.Memo),
+                DbfFieldType.NullFlags => DbfFieldNullFlagsFormatter.ReadRaw(source),
+                DbfFieldType.Picture => DbfFieldMemoFormatter.ReadMemo(source, MemoRecordType.Picture, context.Encoding, context.Memo),
+                DbfFieldType.Variant => DbfFieldVariantFormatter.ReadRaw(source, context.Encoding),
+                _ => throw new NotSupportedException($"Field type '{descriptor.Type}' is not supported.")
+            };
+        }
+        catch (Exception exception) when (DbfSerializationContext.IsFieldError(exception))
+        {
+            throw context.CreateException(fieldIndex, descriptor, typeof(DbfField), exception);
+        }
+    }
 
-    private static void WriteField(Span<byte> target, DbfField value, DbfFieldDescriptor descriptor, DbfSerializationContext context)
+    private static void WriteField(Span<byte> target, DbfField value, DbfFieldDescriptor descriptor, in DbfSerializationContext context)
     {
         switch (descriptor.Type)
         {

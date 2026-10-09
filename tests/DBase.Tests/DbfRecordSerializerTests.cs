@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-
 using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Serialization;
@@ -81,7 +80,7 @@ public sealed class DbfRecordSerializerTests
     }
 
     [Fact]
-    public void CreateTyped_NullableCurrencyWithNull_ThrowsInvalidOperationException()
+    public void CreateTyped_NullableCurrencyWithNull_ThrowsSerializationException()
     {
         var dbfPath = GetTempDbfPath();
 
@@ -89,10 +88,14 @@ public sealed class DbfRecordSerializerTests
         {
             using var source = Dbf.Create<NullableCurrencyRecord>(dbfPath, new DbfCreateOptions { Version = DbfVersion.VisualFoxPro });
 
-            var exception = Assert.Throws<InvalidOperationException>(
+            var exception = Assert.Throws<DbfSerializationException>(
                 () => source.Add(new NullableCurrencyRecord { Amount = null }));
 
-            Assert.Contains("Currency fields cannot serialize null values", exception.Message);
+            Assert.Equal(DbfSerializationOperation.Write, exception.Operation);
+            Assert.Equal(nameof(NullableCurrencyRecord.Amount), exception.FieldName.ToString());
+            Assert.Equal(typeof(decimal?), exception.TargetClrType);
+            var inner = Assert.IsType<InvalidOperationException>(exception.InnerException);
+            Assert.Contains("Currency fields cannot serialize null values", inner.Message);
         }
         finally
         {
@@ -137,6 +140,68 @@ public sealed class DbfRecordSerializerTests
         Assert.Equal(nullFlags, actual._NullFlags);
     }
 
+    [Theory]
+    [MemberData(nameof(BadFieldReadCases))]
+    public void GetRecord_InvalidFieldValue_ThrowsSerializationException(BadFieldReadCase testCase)
+    {
+        var dbfBytes = new MemoryStream();
+        using var dbf = Dbf.Create(dbfBytes, testCase.Descriptors);
+        testCase.AddValidRecord(dbf);
+        OverwriteField(dbfBytes, dbf, testCase.FieldIndex, testCase.InvalidBytes);
+
+        var exception = Assert.Throws<DbfSerializationException>(() => testCase.ReadInvalidRecord(dbf));
+
+        Assert.Equal(DbfSerializationOperation.Read, exception.Operation);
+        Assert.Equal(0, exception.RecordIndex);
+        Assert.Equal(testCase.FieldIndex, exception.FieldIndex);
+        Assert.Equal(testCase.FieldName, exception.FieldName.ToString());
+        Assert.Equal(testCase.FieldType, exception.FieldType);
+        Assert.Equal(testCase.TargetClrType, exception.TargetClrType);
+        Assert.Equal(testCase.RecordType, exception.RecordType);
+        Assert.Contains("read", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"record {exception.RecordIndex}", exception.Message);
+        Assert.Contains(testCase.FieldName, exception.Message);
+        Assert.Contains(testCase.FieldType.ToString(), exception.Message);
+        Assert.Contains(testCase.TargetClrType.FullName!, exception.Message);
+        Assert.IsType(testCase.InnerExceptionType, exception.InnerException);
+    }
+
+    [Fact]
+    public void Add_NumericValueTooLong_ThrowsSerializationExceptionWithDescriptorLength()
+    {
+        var descriptors = ImmutableArray.Create(DbfFieldDescriptor.Numeric("COUNT", 3));
+        using var dbf = Dbf.Create(new MemoryStream(), descriptors);
+
+        var exception = Assert.Throws<DbfSerializationException>(
+            () => dbf.Add(new NumericRecord(12345)));
+
+        Assert.Equal(DbfSerializationOperation.Write, exception.Operation);
+        Assert.Equal(0, exception.RecordIndex);
+        Assert.Equal(0, exception.FieldIndex);
+        Assert.Equal("COUNT", exception.FieldName.ToString());
+        Assert.Equal((byte)3, exception.Descriptor.Length);
+        Assert.Equal(typeof(int), exception.TargetClrType);
+        Assert.IsType<OverflowException>(exception.InnerException);
+        Assert.Contains("COUNT", exception.Message);
+        Assert.Contains("length 3", exception.Message);
+    }
+
+    [Fact]
+    public void GetSerializer_PropertyCountMismatch_MessageListsDescriptorsPropertiesAndRecordType()
+    {
+        var descriptors = ImmutableArray.Create(
+            DbfFieldDescriptor.Character("NAME", 10),
+            DbfFieldDescriptor.Numeric("AGE"));
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => descriptors.GetSerializer<PropertyCountMismatchRecord>());
+
+        Assert.Contains(typeof(PropertyCountMismatchRecord).FullName!, exception.Message);
+        Assert.Contains("NAME", exception.Message);
+        Assert.Contains("AGE", exception.Message);
+        Assert.Contains(nameof(PropertyCountMismatchRecord.Name), exception.Message);
+    }
+
     [Fact]
     public void UntypedSerializer_BinaryFields_RoundTripsWithoutBoxing()
     {
@@ -146,7 +211,8 @@ public sealed class DbfRecordSerializerTests
         using var dbf = Dbf.Create(new MemoryStream(), descriptors,
             options: new DbfCreateOptions { Version = DbfVersion.VisualFoxPro });
         var serializer = new DbfRecordSerializer<DbfRecord>(dbf.Descriptors);
-        var context = new DbfSerializationContext(Encoding.ASCII, null, '.');
+        var context = new DbfSerializationContext(Encoding.ASCII, null, '.',
+            DbfSerializationOperation.Write, 0, dbf.Version, dbf.Language, typeof(DbfRecord));
         var record = new DbfRecord(DbfRecordStatus.Deleted, (DbfField)42, (DbfField)1.5D,
             (DbfField)12.3456M, (DbfField)true);
         var bytes = new byte[dbf.RecordLength];
@@ -188,6 +254,105 @@ public sealed class DbfRecordSerializerTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static DbfField[] AllocateFields(int count) => new DbfField[count];
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GetRecord_InvalidSecondFieldInSecondRecord_ReportsPhysicalContext(bool untyped)
+    {
+        var descriptors = ImmutableArray.Create(DbfFieldDescriptor.Character("NAME", 3),
+            DbfFieldDescriptor.Numeric("COUNT", 5), DbfFieldDescriptor.Logical("FLAG"));
+        using var bytes = new MemoryStream();
+        using var dbf = Dbf.Create(bytes, descriptors);
+        dbf.Add(new ContextRecord("one", 123, true));
+        dbf.Add(new ContextRecord("two", 456, false));
+        bytes.Position = dbf.HeaderLength;
+        bytes.WriteByte((byte)DbfRecordStatus.Deleted);
+        bytes.Position = dbf.HeaderLength + dbf.RecordLength + dbf.Descriptors[1].Offset;
+        bytes.Write("abc  "u8);
+
+        var exception = Assert.Throws<DbfSerializationException>(() =>
+        {
+            if (untyped) dbf.GetRecord(1);
+            else dbf.GetRecord<ContextRecord>(1);
+        });
+
+        Assert.Equal(DbfSerializationOperation.Read, exception.Operation);
+        Assert.Equal(1, exception.RecordIndex);
+        Assert.Equal(1, exception.FieldIndex);
+        Assert.Equal(dbf.Descriptors[1], exception.Descriptor);
+        Assert.Equal("COUNT", exception.FieldName.ToString());
+        Assert.Equal(DbfFieldType.Numeric, exception.FieldType);
+        Assert.Equal(untyped ? typeof(DbfField) : typeof(int), exception.TargetClrType);
+        Assert.Equal(untyped ? typeof(DbfRecord) : typeof(ContextRecord), exception.RecordType);
+        Assert.Equal(dbf.Version, exception.Version);
+        Assert.Equal(dbf.Language, exception.Language);
+        Assert.IsType<FormatException>(exception.InnerException);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Add_SecondFieldOverflowInSecondRecord_ReportsContextWithoutAppending(bool untyped)
+    {
+        var descriptors = ImmutableArray.Create(DbfFieldDescriptor.Character("NAME", 3),
+            DbfFieldDescriptor.Numeric("COUNT", 3), DbfFieldDescriptor.Logical("FLAG"));
+        using var dbf = Dbf.Create(new MemoryStream(), descriptors);
+        dbf.Add(new ContextRecord("one", 123, true));
+
+        var exception = Assert.Throws<DbfSerializationException>(() =>
+        {
+            if (untyped) dbf.Add(new DbfRecord("two", 12345L, false));
+            else dbf.Add(new ContextRecord("two", 12345, false));
+        });
+
+        Assert.Equal(DbfSerializationOperation.Write, exception.Operation);
+        Assert.Equal(1, exception.RecordIndex);
+        Assert.Equal(1, exception.FieldIndex);
+        Assert.Equal(dbf.Descriptors[1], exception.Descriptor);
+        Assert.Equal(untyped ? typeof(DbfField) : typeof(int), exception.TargetClrType);
+        Assert.Equal(untyped ? typeof(DbfRecord) : typeof(ContextRecord), exception.RecordType);
+        Assert.Equal(dbf.Version, exception.Version);
+        Assert.Equal(dbf.Language, exception.Language);
+        Assert.IsType<OverflowException>(exception.InnerException);
+        Assert.Equal(1, dbf.RecordCount);
+        Assert.Equal(new ContextRecord("one", 123, true), dbf.GetRecord<ContextRecord>(0));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Deserialize_UnexpectedFailure_PropagatesOriginalException(bool untyped)
+    {
+        using var dbf = Dbf.Create(new MemoryStream(), [DbfFieldDescriptor.Numeric("COUNT", 5)]);
+        var typedSerializer = new DbfRecordSerializer<NumericRecord>(dbf.Descriptors);
+        var untypedSerializer = new DbfRecordSerializer<DbfRecord>(dbf.Descriptors);
+        var bytes = "  12345"u8.ToArray();
+        Exception[] failures = [new OperationCanceledException(), new OutOfMemoryException("sentinel"),
+            new NullReferenceException("sentinel")];
+
+        foreach (var failure in failures)
+        {
+            var context = new DbfSerializationContext(new ThrowingEncoding(failure), null, '.',
+                DbfSerializationOperation.Read, 0, dbf.Version, dbf.Language,
+                untyped ? typeof(DbfRecord) : typeof(NumericRecord));
+
+            var actual = Record.Exception(() =>
+            {
+                if (untyped) untypedSerializer.Deserialize(bytes, in context);
+                else typedSerializer.Deserialize(bytes, in context);
+            });
+
+            Assert.Same(failure, actual);
+        }
+    }
+
+    private sealed class ThrowingEncoding(Exception failure) : UTF8Encoding
+    {
+        public override int GetCharCount(ReadOnlySpan<byte> bytes) => throw failure;
+    }
+
+    private sealed record ContextRecord(string Name, int Count, bool Flag);
+
     private static string GetTempDbfPath() =>
         Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.dbf");
 
@@ -196,6 +361,63 @@ public sealed class DbfRecordSerializerTests
         File.Delete(dbfPath);
         File.Delete(Path.ChangeExtension(dbfPath, "dbt"));
         File.Delete(Path.ChangeExtension(dbfPath, "fpt"));
+    }
+
+    public static IEnumerable<object[]> BadFieldReadCases()
+    {
+        yield return
+        [
+            new BadFieldReadCase(
+                ImmutableArray.Create(DbfFieldDescriptor.Numeric("COUNT", 5)),
+                0,
+                "COUNT",
+                DbfFieldType.Numeric,
+                typeof(int),
+                typeof(NumericRecord),
+                typeof(FormatException),
+                "abc  "u8.ToArray(),
+                static dbf => dbf.Add(new NumericRecord(123)),
+                static dbf => dbf.GetRecord<NumericRecord>(0))
+        ];
+
+        yield return
+        [
+            new BadFieldReadCase(
+                ImmutableArray.Create(DbfFieldDescriptor.Date("WHEN")),
+                0,
+                "WHEN",
+                DbfFieldType.Date,
+                typeof(DateOnly),
+                typeof(DateRecord),
+                typeof(FormatException),
+                "20231301"u8.ToArray(),
+                static dbf => dbf.Add(new DateRecord(new DateOnly(2024, 1, 1))),
+                static dbf => dbf.GetRecord<DateRecord>(0))
+        ];
+
+        yield return
+        [
+            new BadFieldReadCase(
+                ImmutableArray.Create(DbfFieldDescriptor.Logical("FLAG")),
+                0,
+                "FLAG",
+                DbfFieldType.Logical,
+                typeof(bool),
+                typeof(LogicalRecord),
+                typeof(InvalidOperationException),
+                "X"u8.ToArray(),
+                static dbf => dbf.Add(new LogicalRecord(true)),
+                static dbf => dbf.GetRecord<LogicalRecord>(0))
+        ];
+    }
+
+    private static void OverwriteField(MemoryStream dbfBytes, Dbf dbf, int fieldIndex, byte[] bytes)
+    {
+        var descriptor = dbf.Descriptors[fieldIndex];
+        Assert.Equal(descriptor.Length, bytes.Length);
+
+        dbfBytes.Position = dbf.HeaderLength + descriptor.Offset;
+        dbfBytes.Write(bytes);
     }
 
     private sealed class MutableCustomer
@@ -217,5 +439,28 @@ public sealed class DbfRecordSerializerTests
         public byte[] Payload { get; set; } = [];
 
         public byte[] _NullFlags { get; set; } = [];
+    }
+
+    public sealed record BadFieldReadCase(
+        ImmutableArray<DbfFieldDescriptor> Descriptors,
+        int FieldIndex,
+        string FieldName,
+        DbfFieldType FieldType,
+        Type TargetClrType,
+        Type RecordType,
+        Type InnerExceptionType,
+        byte[] InvalidBytes,
+        Action<Dbf> AddValidRecord,
+        Action<Dbf> ReadInvalidRecord);
+
+    private sealed record NumericRecord(int Count);
+
+    private sealed record DateRecord(DateOnly When);
+
+    private sealed record LogicalRecord(bool Flag);
+
+    private sealed class PropertyCountMismatchRecord
+    {
+        public string Name { get; set; } = string.Empty;
     }
 }

@@ -89,6 +89,17 @@ Text writes for character and Visual FoxPro varchar fields are limited by the fi
 encoded value is too wide, it is truncated at a complete encoded character and any remaining bytes are
 space-padded. Numeric, date, and binary fields remain strict about values that do not fit.
 
+### Serialization Errors
+
+Field conversion and field I/O failures throw `DbfSerializationException`. The exception identifies the
+read or write operation, zero-based physical record and field indices, field descriptor, CLR types, DBF
+version, and language-driver marker. Both typed records and untyped `DbfRecord` values include this context.
+
+The original exception is preserved as `InnerException`. Code that previously caught a formatter's
+`FormatException`, `OverflowException`, or other field exception should catch `DbfSerializationException`
+at the record read/write boundary and inspect its inner exception. Cancellation and unexpected runtime
+failures propagate unchanged. Schema and mapped-property validation errors remain separate.
+
 ## References
 
 - [Independent Software - dBASE DBF/DBT File Format](http://www.independent-software.com/dbase-dbf-dbt-file-format.html)
