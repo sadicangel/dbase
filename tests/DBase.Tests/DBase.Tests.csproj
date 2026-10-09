@@ -5,9 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="**\*.dbf" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
-    <Content Include="**\*.dbt" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
-    <Content Include="**\*.fpt" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
+    <Content Include="**\*.dbf" Exclude="$(DefaultItemExcludes)" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
+    <Content Include="**\*.dbt" Exclude="$(DefaultItemExcludes)" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
+    <Content Include="**\*.fpt" Exclude="$(DefaultItemExcludes)" CopyToOutputDirectory="PreserveNewest" Link="%(RecursiveDir)\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
