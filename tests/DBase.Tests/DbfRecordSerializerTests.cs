@@ -1,5 +1,9 @@
 using System.Collections.Immutable;
 
+using System.Runtime.CompilerServices;
+using System.Text;
+using DBase.Serialization;
+
 namespace DBase.Tests;
 
 public sealed class DbfRecordSerializerTests
@@ -132,6 +136,57 @@ public sealed class DbfRecordSerializerTests
         Assert.Equal(payload, actual.Payload);
         Assert.Equal(nullFlags, actual._NullFlags);
     }
+
+    [Fact]
+    public void UntypedSerializer_BinaryFields_RoundTripsWithoutBoxing()
+    {
+        var descriptors = ImmutableArray.Create(DbfFieldDescriptor.Int32("Id"),
+            DbfFieldDescriptor.Double("Number"), DbfFieldDescriptor.Currency("Amount"),
+            DbfFieldDescriptor.Logical("Active"));
+        using var dbf = Dbf.Create(new MemoryStream(), descriptors,
+            options: new DbfCreateOptions { Version = DbfVersion.VisualFoxPro });
+        var serializer = new DbfRecordSerializer<DbfRecord>(dbf.Descriptors);
+        var context = new DbfSerializationContext(Encoding.ASCII, null, '.');
+        var record = new DbfRecord(DbfRecordStatus.Deleted, (DbfField)42, (DbfField)1.5D,
+            (DbfField)12.3456M, (DbfField)true);
+        var bytes = new byte[dbf.RecordLength];
+        byte[] expected =
+        [
+            0x2A, // Deleted record marker.
+            0x2A, 0x00, 0x00, 0x00, // Int32: 42.
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF8, 0x3F, // Double: 1.5.
+            0x40, 0xE2, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // Currency: 12.3456 * 10000.
+            (byte)'T'
+        ];
+        serializer.Serialize(bytes, record, context);
+        var roundtrip = serializer.Deserialize(bytes, context);
+
+        Assert.Equal(expected, bytes);
+        Assert.Equal(record, roundtrip);
+
+        var beforeWrite = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 128; i++)
+            serializer.Serialize(bytes, record, context);
+        var writeAllocation = GC.GetAllocatedBytesForCurrentThread() - beforeWrite;
+
+        // Deserialization needs one array to retain the fields, but no boxes or temporary object[].
+        var beforeArray = GC.GetAllocatedBytesForCurrentThread();
+        var storage = AllocateFields(record.Count);
+        var arrayAllocation = GC.GetAllocatedBytesForCurrentThread() - beforeArray;
+        GC.KeepAlive(storage);
+        var beforeRead = GC.GetAllocatedBytesForCurrentThread();
+        var idSum = 0;
+        for (var i = 0; i < 128; i++)
+            idSum += (int)serializer.Deserialize(bytes, context)[0];
+        var readAllocation = GC.GetAllocatedBytesForCurrentThread() - beforeRead;
+
+        Assert.Equal(0, writeAllocation);
+        Assert.Equal(arrayAllocation * 128, readAllocation);
+        Assert.Equal(42 * 128, idSum);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static DbfField[] AllocateFields(int count) => new DbfField[count];
 
     private static string GetTempDbfPath() =>
         Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.dbf");
