@@ -16,11 +16,12 @@
     <PackageTags>dbase;xbase;dbf;foxbase;foxpro;visualfoxpro;database;codegen</PackageTags>
     <RepositoryUrl>https://github.com/sadicangel/dbase</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <!--<PackageIcon>icon.png</PackageIcon>-->
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

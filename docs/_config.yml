@@ -1,0 +1,39 @@
+title: DBase
+description: Read and write xBase DBF tables and DBT/FPT memo files with .NET.
+url: https://sadicangel.github.io
+baseurl: /dbase
+theme: just-the-docs
+logo: /assets/images/icon.png
+favicon_ico: /assets/images/icon.png
+permalink: pretty
+lang: en
+plugins:
+  - jekyll-relative-links
+
+search_enabled: true
+heading_anchors: true
+enable_copy_code_button: true
+
+aux_links:
+  GitHub: https://github.com/sadicangel/dbase
+  NuGet: https://www.nuget.org/packages/DBase
+
+gh_edit_link: true
+gh_edit_repository: https://github.com/sadicangel/dbase
+gh_edit_branch: main
+gh_edit_source: docs
+gh_edit_view_mode: edit
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - check-links.rb
+  - examples
+  - vendor

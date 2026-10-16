@@ -1,0 +1,69 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - src/**
+      - Directory.*
+      - global.json
+      - .github/workflows/docs.yml
+  pull_request:
+    paths:
+      - docs/**
+      - src/**
+      - Directory.*
+      - global.json
+      - .github/workflows/docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+          working-directory: docs
+      - name: Build documentation
+        env:
+          JEKYLL_ENV: production
+        run: bundle exec --gemfile docs/Gemfile jekyll build --source docs --destination artifacts/docs-site --strict_front_matter
+      - name: Validate local links and assets
+        run: bundle exec --gemfile docs/Gemfile ruby docs/check-links.rb artifacts/docs-site /dbase
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 11.0.x
+          dotnet-quality: preview
+      - name: Run documentation examples
+        run: dotnet run --project docs/examples/DBase.Docs.Examples.csproj --configuration Release
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/docs-site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy documentation
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">DBase</title>
+  <desc id="desc">A green D containing three rows, representing a DBF data table.</desc>
+  <defs>
+    <linearGradient id="body" x1="24" y1="16" x2="104" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#55b638"/>
+      <stop offset="1" stop-color="#248a2e"/>
+    </linearGradient>
+    <linearGradient id="spine" x1="20" y1="64" x2="40" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1f6f29"/>
+      <stop offset="1" stop-color="#2e9433"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#body)" fill-rule="evenodd" d="M24 16H60C92 16 112 35 112 64S92 112 60 112H24V16ZM44 36V48H84C79 40 71 36 60 36H44ZM44 58V70H92C92 68 92 66 92 64S92 60 92 58H44ZM44 80V92H60C71 92 79 88 84 80H44Z"/>
+  <path fill="url(#spine)" d="M24 16L40 28V100L24 112V16Z"/>
+  <path fill="#8bd05a" fill-opacity=".55" d="M24 16H60C80 16 95 23 104 36C94 25 80 20 60 20H29L24 16Z"/>
+</svg>
