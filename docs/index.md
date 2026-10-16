@@ -23,5 +23,6 @@ foreach (var row in dbf.EnumerateRecords())
 - [Text encoding](encoding.md): resolve language markers and `.cpg` files, and handle byte limits.
 - [Memo files](memo.md): work with DBT/FPT storage and binary values.
 - [Compatibility and errors](compatibility.md): understand supported formats and current limits.
+- [API reference]({{ '/api/' | relative_url }}): browse public types, members, parameters, and return values.
 
 These pages describe the source on the repository's `main` branch. A published package may have fewer APIs; use the source at its release tag when checking version-specific behavior. DBase is licensed under the [MIT License](https://github.com/sadicangel/dbase/blob/main/LICENSE).

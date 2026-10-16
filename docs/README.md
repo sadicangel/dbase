@@ -4,11 +4,11 @@ The site uses Jekyll and Just the Docs, matching the documentation stack in `avr
 
 ## Local build
 
-With Ruby 3.4 and Bundler installed, run from the repository root:
+With Ruby 3.4, Bundler, and the .NET 11 SDK installed, run from the repository root:
 
 ```shell
 bundle install --gemfile docs/Gemfile
-bundle exec --gemfile docs/Gemfile jekyll build --source docs --destination artifacts/docs-site --strict_front_matter
+bundle exec --gemfile docs/Gemfile ruby docs/build.rb
 bundle exec --gemfile docs/Gemfile ruby docs/check-links.rb artifacts/docs-site /dbase
 dotnet run --project docs/examples/DBase.Docs.Examples.csproj --configuration Release
 ```
@@ -16,10 +16,14 @@ dotnet run --project docs/examples/DBase.Docs.Examples.csproj --configuration Re
 For a local preview:
 
 ```shell
-bundle exec --gemfile docs/Gemfile jekyll serve --source docs --destination artifacts/docs-site
+bundle exec --gemfile docs/Gemfile ruby docs/build.rb --serve
 ```
 
 Open http://localhost:4000/dbase/. Build output is ignored. Commit `Gemfile.lock` when changing dependencies. Markdown links between documentation pages are rewritten by Jekyll to their published URLs.
+
+The build compiles DBase and restores the pinned [xmldocmd](https://github.com/ejball/XmlDocMarkdown) local tool, then generates the API reference from the assembly and its XML comments. Generated pages live only in a temporary build directory under `artifacts`; update public XML comments in `src/DBase` to change the reference. Re-run the build after source changes, including when previewing locally. API pages share the guides' navigation, search, and theme.
+
+The theme switch and GitHub/NuGet icons match `avro-source-generator`. The site follows the system color scheme until the reader selects light or dark; that choice is saved under `dbase-theme` in browser local storage. System changes remain live until a choice is saved. Without JavaScript or available storage, the system theme still works.
 
 ## GitHub Pages setup
 

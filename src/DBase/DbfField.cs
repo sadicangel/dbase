@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using DBase.Interop;
@@ -189,7 +189,6 @@ public readonly struct DbfField : IUnion, IEquatable<DbfField>
     /// <returns>
     /// <see langword="true" /> if this instance is of type <typeparamref name="T"/>; otherwise, <see langword="false" />.
     /// </returns>
-    [MemberNotNullWhen(true, nameof(Value))]
     public bool IsType<T>() => _tag switch
     {
         DbfFieldTag.String => typeof(T) == typeof(string),
@@ -609,8 +608,9 @@ public readonly struct DbfField : IUnion, IEquatable<DbfField>
             ? $"{underlyingType.Name}?"
             : targetType.Name;
 
-        return new InvalidCastException(IsNull
-            ? $"Cannot cast a null DbfField to '{targetName}'."
-            : $"Cannot cast a DbfField containing '{_tag}' to '{targetName}'.");
+        return new InvalidCastException(
+            IsNull
+                ? $"Cannot cast a null DbfField to '{targetName}'."
+                : $"Cannot cast a DbfField containing '{_tag}' to '{targetName}'.");
     }
 }

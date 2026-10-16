@@ -5,9 +5,9 @@ namespace DBase.Serialization;
 
 internal sealed class DbfRecordSerializer<T>(ImmutableArray<DbfFieldDescriptor> descriptors)
 {
-    private readonly TypeProjection<T> _typeProjection = typeof(T) == typeof(DbfRecord) ? default : new();
-    private readonly DbfRecordFormatter<T> _recordFormatter = typeof(T) == typeof(DbfRecord) ? default : new(descriptors);
-    private readonly DbfRecordFieldFormatter _fieldFormatter = typeof(T) == typeof(DbfRecord) ? new(descriptors) : default;
+    private readonly TypeProjection<T> _typeProjection = typeof(T) == typeof(DbfRecord) ? default : new TypeProjection<T>();
+    private readonly DbfRecordFormatter<T> _recordFormatter = typeof(T) == typeof(DbfRecord) ? default : new DbfRecordFormatter<T>(descriptors);
+    private readonly DbfRecordFieldFormatter _fieldFormatter = typeof(T) == typeof(DbfRecord) ? new DbfRecordFieldFormatter(descriptors) : default;
 
     public void Serialize(Span<byte> target, T record, in DbfSerializationContext context)
     {

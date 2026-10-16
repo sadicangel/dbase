@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - docs/**
+      - .config/dotnet-tools.json
       - src/**
       - Directory.*
       - global.json
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - docs/**
+      - .config/dotnet-tools.json
       - src/**
       - Directory.*
       - global.json
@@ -35,16 +37,16 @@ jobs:
           ruby-version: '3.4'
           bundler-cache: true
           working-directory: docs
-      - name: Build documentation
-        env:
-          JEKYLL_ENV: production
-        run: bundle exec --gemfile docs/Gemfile jekyll build --source docs --destination artifacts/docs-site --strict_front_matter
-      - name: Validate local links and assets
-        run: bundle exec --gemfile docs/Gemfile ruby docs/check-links.rb artifacts/docs-site /dbase
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 11.0.x
           dotnet-quality: preview
+      - name: Build guides and API reference
+        env:
+          JEKYLL_ENV: production
+        run: bundle exec --gemfile docs/Gemfile ruby docs/build.rb
+      - name: Validate local links and assets
+        run: bundle exec --gemfile docs/Gemfile ruby docs/check-links.rb artifacts/docs-site /dbase
       - name: Run documentation examples
         run: dotnet run --project docs/examples/DBase.Docs.Examples.csproj --configuration Release
       - uses: actions/upload-pages-artifact@v4
