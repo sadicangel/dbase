@@ -5,6 +5,7 @@ baseurl: /dbase
 theme: just-the-docs
 logo: /assets/images/icon.png
 favicon_ico: /assets/images/icon.png
+color_scheme: light
 permalink: pretty
 lang: en
 plugins:
@@ -35,5 +36,6 @@ exclude:
   - Gemfile.lock
   - README.md
   - check-links.rb
+  - build.rb
   - examples
   - vendor
