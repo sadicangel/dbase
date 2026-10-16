@@ -12,6 +12,9 @@ A .NET library for reading and writing xBase DBF files.
 
 ## Installation
 
+The [documentation guides](https://github.com/sadicangel/dbase/tree/main/docs) cover record mapping, field formats, encoding, memo files, and
+compatibility. The GitHub Pages workflow publishes them to [DBase documentation](https://sadicangel.github.io/dbase/).
+
 To install the library, add the following package reference to your project:
 
 ```xml
