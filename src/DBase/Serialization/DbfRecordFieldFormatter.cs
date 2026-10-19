@@ -26,7 +26,7 @@ internal readonly struct DbfRecordFieldFormatter(ImmutableArray<DbfFieldDescript
         }
 
         // The freshly allocated array is owned exclusively by the returned immutable record.
-        return new DbfRecord(status, ImmutableCollectionsMarshal.AsImmutableArray(fields));
+        return new DbfRecord(status, descriptors, ImmutableCollectionsMarshal.AsImmutableArray(fields));
     }
 
     /// <summary>
@@ -37,16 +37,33 @@ internal readonly struct DbfRecordFieldFormatter(ImmutableArray<DbfFieldDescript
     /// <param name="context">The serialization context.</param>
     public void Write(Span<byte> target, DbfRecord record, in DbfSerializationContext context)
     {
-        target[0] = (byte)record.Status;
-        // Preserve the existing formatter's Zip behavior for records with fewer fields than descriptors.
-        var count = Math.Min(descriptors.Length, record.Count);
+        if (record.Descriptors.IsDefault)
+            throw new ArgumentException("The record must have field descriptors.", nameof(record));
+
+        // The destination table's descriptors determine the persisted layout, including when copying rows.
+        Write(target, record.Fields.AsSpan(), record.Status, in context);
+    }
+
+    /// <summary>
+    /// Serializes field values directly without allocating record storage.
+    /// </summary>
+    /// <param name="target">The destination for the record status and field data.</param>
+    /// <param name="fields">Field values in destination descriptor order.</param>
+    /// <param name="status">The persisted record status byte.</param>
+    /// <param name="context">The serialization context.</param>
+    public void Write(Span<byte> target, ReadOnlySpan<DbfField> fields, DbfRecordStatus status, in DbfSerializationContext context)
+    {
+        if (fields.Length != descriptors.Length)
+            throw new ArgumentException("Supply exactly one field value per descriptor.", nameof(fields));
+
+        target[0] = (byte)status;
         var i = 0;
         try
         {
-            for (; i < count; i++)
+            for (; i < fields.Length; i++)
             {
                 var descriptor = descriptors[i];
-                WriteField(target.Slice(descriptor.Offset, descriptor.Length), record[i], descriptor, in context);
+                WriteField(target.Slice(descriptor.Offset, descriptor.Length), fields[i], descriptor, in context);
             }
         }
         catch (Exception exception) when (DbfSerializationContext.IsFieldError(exception))

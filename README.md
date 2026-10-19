@@ -71,7 +71,7 @@ using var dbf = Dbf.Create(
     [DbfFieldDescriptor.Character("FieldName", 20)]);
 
 // Using built-in `DbfRecord` type.
-dbf.Add(new DbfRecord("Value"));
+dbf.Add("Value");
 
 // Using a custom type.
 dbf.Add(new MyRecordType { FieldName = "Value" });

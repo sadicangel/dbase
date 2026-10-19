@@ -13,7 +13,7 @@ public sealed class DbfRecordSerializerTests
         var descriptors = ImmutableArray.Create(DbfFieldDescriptor.Character("Name", 10));
 
         using var source = Dbf.Create(new MemoryStream(), descriptors);
-        source.Add(new DbfRecord(DbfRecordStatus.Deleted, (DbfField)"gone"));
+        source.Add(new DbfRecord(DbfRecordStatus.Deleted, source.Descriptors, ["gone"]));
 
         using var target = Dbf.Create(
             new MemoryStream(),
@@ -213,8 +213,7 @@ public sealed class DbfRecordSerializerTests
         var serializer = new DbfRecordSerializer<DbfRecord>(dbf.Descriptors);
         var context = new DbfSerializationContext(Encoding.ASCII, null, '.',
             DbfSerializationOperation.Write, 0, dbf.Version, dbf.Language, typeof(DbfRecord));
-        var record = new DbfRecord(DbfRecordStatus.Deleted, (DbfField)42, (DbfField)1.5D,
-            (DbfField)12.3456M, (DbfField)true);
+        var record = new DbfRecord(DbfRecordStatus.Deleted, dbf.Descriptors, [42, 1.5D, 12.3456M, true]);
         var bytes = new byte[dbf.RecordLength];
         byte[] expected =
         [
@@ -301,7 +300,7 @@ public sealed class DbfRecordSerializerTests
 
         var exception = Assert.Throws<DbfSerializationException>(() =>
         {
-            if (untyped) dbf.Add(new DbfRecord("two", 12345L, false));
+            if (untyped) dbf.Add("two", 12345L, false);
             else dbf.Add(new ContextRecord("two", 12345, false));
         });
 

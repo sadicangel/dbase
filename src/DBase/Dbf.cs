@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text;
 using DBase.Interop;
 using DBase.Serialization;
@@ -660,9 +661,35 @@ public sealed class Dbf : IDisposable
     /// </summary>
     /// <param name="record">The record to add.</param>
     /// <remarks>
-    /// Records are written with a valid (not deleted) status marker.
+    /// Preserves the record's status marker. Values are written in the destination table's descriptor order.
     /// </remarks>
+    /// <exception cref="ArgumentException">The record is uninitialized or has a different number of fields.</exception>
     public void Add(DbfRecord record) => WriteRecord(RecordCount, record);
+
+    /// <summary>
+    /// Appends field values to the end of the table using its schema.
+    /// </summary>
+    /// <param name="fields">Exactly one field value per table descriptor, in descriptor order.</param>
+    /// <remarks>
+    /// Writes a valid (not deleted) status marker without allocating a field array.
+    /// This overload is preferred over typed serialization when the arguments can be used as field values.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The number of fields differs from the number of table descriptors.</exception>
+    public void Add(params ReadOnlySpan<DbfField> fields)
+    {
+        if (fields.Length != Descriptors.Length)
+            throw new ArgumentException("Supply exactly one field value per descriptor.", nameof(fields));
+
+        SetStreamPositionForRecord(RecordCount);
+        using var buffer = _header.RecordLength < StackallocThreshold
+            ? new SpanOwner<byte>(stackalloc byte[_header.RecordLength])
+            : new SpanOwner<byte>(_header.RecordLength);
+
+        var context = CreateSerializationContext<DbfRecord>(DbfSerializationOperation.Write, RecordCount);
+        new DbfRecordFieldFormatter(Descriptors).Write(buffer.Span, fields, DbfRecordStatus.Valid, in context);
+        _dbf.Write(buffer.Span);
+        RecordCount++;
+    }
 
     /// <summary>
     /// Appends a typed record value to the end of the table.
@@ -672,6 +699,7 @@ public sealed class Dbf : IDisposable
     /// <remarks>
     /// Records are written with a valid (not deleted) status marker.
     /// </remarks>
+    [OverloadResolutionPriority(-1)]
     public void Add<T>(T record) => WriteRecord(RecordCount, record);
 
     internal long SetStreamPositionForRecord(int recordIndex) =>

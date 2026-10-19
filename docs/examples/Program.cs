@@ -9,8 +9,8 @@ try
         peoplePath,
         [DbfFieldDescriptor.Character("NAME", 30), DbfFieldDescriptor.Numeric("AGE", 3)]))
     {
-        table.Add(new DbfRecord("Ada", 36L));
-        table.Add(new DbfRecord(DbfRecordStatus.Deleted, "Grace", 85L));
+        table.Add("Ada", 36L);
+        table.Add(new DbfRecord(DbfRecordStatus.Deleted, table.Descriptors, ["Grace", 85L]));
     }
 
     using (var table = Dbf.Open(peoplePath))
@@ -47,7 +47,7 @@ try
         utf8Path,
         [DbfFieldDescriptor.Character("NAME", 30)],
         new DbfCreateOptions { Encoding = Encoding.UTF8 }))
-        table.Add(new DbfRecord("João"));
+        table.Add("João");
     File.WriteAllText(Path.ChangeExtension(utf8Path, ".cpg"), "UTF-8");
     using (var table = Dbf.Open(utf8Path))
         Require(table[0][0].GetValue<string>() == "João", "Code-page sidecar");
