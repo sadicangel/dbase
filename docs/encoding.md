@@ -38,7 +38,7 @@ using var table = Dbf.Create(
     "utf8.dbf",
     [DbfFieldDescriptor.Character("NAME", 30)],
     new DbfCreateOptions { Encoding = Encoding.UTF8 });
-table.Add(new DbfRecord("João"));
+table.Add("João");
 File.WriteAllText("utf8.cpg", "UTF-8");
 ```
 

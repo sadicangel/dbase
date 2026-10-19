@@ -9,20 +9,28 @@ namespace DBase;
 /// </summary>
 /// <remarks>
 /// A DBF record starts with a one-byte delete flag followed by the field data, in the order defined by the
-/// table header.
+/// table header. Each initialized record retains its immutable field descriptors. A default-initialized
+/// record has no schema and cannot be written.
 /// </remarks>
 [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
 public readonly record struct DbfRecord : IReadOnlyList<DbfField>
 {
-    internal DbfRecordStatus Status { get; init; }
-    internal ImmutableArray<DbfField> Fields { get; init; }
+    internal DbfRecordStatus Status { get; }
+    internal ImmutableArray<DbfField> Fields { get; }
+
+    /// <summary>
+    /// Gets the immutable field descriptors in the same order as the field values.
+    /// </summary>
+    /// <remarks>
+    /// Records read from a table share the table's descriptor array and retain it after the table is disposed.
+    /// </remarks>
+    public ImmutableArray<DbfFieldDescriptor> Descriptors { get; }
 
     /// <summary>
     /// Gets a value indicating whether the record is marked as deleted in the DBF stream.
     /// </summary>
     /// <remarks>
-    /// Records created through constructors can preserve an explicit status marker. When materialized via
-    /// current typed deserialization paths, status is treated as valid.
+    /// Untyped deserialization and writing preserve the record's status marker.
     /// </remarks>
     public bool IsDeleted => Status is DbfRecordStatus.Deleted;
 
@@ -43,21 +51,36 @@ public readonly record struct DbfRecord : IReadOnlyList<DbfField>
     /// Initializes a new instance of the <see cref="DbfRecord"/> record.
     /// </summary>
     /// <param name="status">The persisted record status byte.</param>
+    /// <param name="descriptors">The schema describing the field values.</param>
     /// <param name="fields">Field values in descriptor order.</param>
-    public DbfRecord(DbfRecordStatus status, params ImmutableArray<DbfField> fields)
+    /// <exception cref="ArgumentException">
+    /// Either array is uninitialized, or the number of fields differs from the number of descriptors.
+    /// </exception>
+    public DbfRecord(DbfRecordStatus status, ImmutableArray<DbfFieldDescriptor> descriptors, ImmutableArray<DbfField> fields)
     {
+        if (descriptors.IsDefault)
+            throw new ArgumentException("Field descriptors must be initialized.", nameof(descriptors));
+        if (fields.IsDefault)
+            throw new ArgumentException("Field values must be initialized.", nameof(fields));
+        if (fields.Length != descriptors.Length)
+            throw new ArgumentException("Supply exactly one field value per descriptor.", nameof(fields));
+
         Status = status;
+        Descriptors = descriptors;
         Fields = fields;
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DbfRecord"/> record.
     /// </summary>
+    /// <param name="descriptors">The schema describing the field values.</param>
     /// <param name="fields">Field values in descriptor order.</param>
-    public DbfRecord(params ImmutableArray<DbfField> fields)
+    /// <exception cref="ArgumentException">
+    /// Either array is uninitialized, or the number of fields differs from the number of descriptors.
+    /// </exception>
+    public DbfRecord(ImmutableArray<DbfFieldDescriptor> descriptors, ImmutableArray<DbfField> fields)
+        : this(DbfRecordStatus.Valid, descriptors, fields)
     {
-        Status = DbfRecordStatus.Valid;
-        Fields = fields;
     }
 
     private string GetDebuggerDisplay() => $"[{string.Join(", ", Fields.Select(x => x.ToString()))}]";

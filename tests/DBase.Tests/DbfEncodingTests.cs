@@ -101,7 +101,7 @@ public sealed class DbfEncodingTests
                 Encoding = encoding,
             });
 
-        dbf.Add(new DbfRecord(value));
+        dbf.Add(value);
     }
 
     private sealed class TempDirectory : IDisposable

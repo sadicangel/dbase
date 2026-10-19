@@ -76,7 +76,7 @@ public class DbfMemoPolicyTests
             CreateMemoDescriptors(),
             new DbfCreateOptions { Version = DbfVersion.FoxPro2WithMemo }))
         {
-            source.Add(new DbfRecord((DbfField)"FoxPro 2 memo"));
+            source.Add("FoxPro 2 memo");
             source.SaveAs(savedPath);
         }
 

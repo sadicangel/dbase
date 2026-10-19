@@ -26,7 +26,7 @@ using DBase;
 using var table = Dbf.Create(
     "notes.dbf",
     [DbfFieldDescriptor.Character("NAME", 30), DbfFieldDescriptor.Memo("NOTES")]);
-table.Add(new DbfRecord("Ada", "Longer text stored outside the DBF record."));
+table.Add("Ada", "Longer text stored outside the DBF record.");
 ```
 
 This schema infers `DBase83` and automatically creates `notes.dbt`. Selecting a version without supported memo storage throws `NotSupportedException` before creating the files. Existing DBF or memo destinations are not overwritten.

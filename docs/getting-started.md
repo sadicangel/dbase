@@ -30,8 +30,8 @@ using (var table = Dbf.Create(
         DbfFieldDescriptor.Numeric("AGE", 3)
     ]))
 {
-    table.Add(new DbfRecord("Ada", 36L));
-    table.Add(new DbfRecord("Grace", 85L));
+    table.Add("Ada", 36L);
+    table.Add("Grace", 85L);
 }
 
 using var people = Dbf.Open("people.dbf");
